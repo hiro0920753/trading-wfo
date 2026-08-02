@@ -135,8 +135,12 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(health.status_code, 200)
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json()["aggregate_metrics"]["net_profit"], 1250)
-        self.assertIn("Strategy telemetry", index.text)
+        self.assertIn("Strategy overview", index.text)
         self.assertIn("Optimization vs validation", index.text)
+        self.assertIn('data-page="overview"', index.text)
+        self.assertIn('data-page="trades"', index.text)
+        self.assertIn("Validation trade diagnostics", index.text)
+        self.assertIn("TRADE INSPECTOR", index.text)
         self.assertIn("renderMetrics", script.text)
         self.assertIn("appendParams", script.text)
         self.assertIn("appendParameterDetails", script.text)
@@ -149,6 +153,10 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("renderStability", script.text)
         self.assertIn("Parameter variation", script.text)
         self.assertIn("Validation net profit", script.text)
+        self.assertIn("renderTradeAnalysis", script.text)
+        self.assertIn("drawTradeDistribution", script.text)
+        self.assertIn("renderTradeInspector", script.text)
+        self.assertIn("metadata.", script.text)
 
     def test_result_api_reports_missing_and_invalid_files(self):
         with tempfile.TemporaryDirectory() as directory:

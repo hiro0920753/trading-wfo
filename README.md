@@ -255,11 +255,21 @@ trading-wfo dashboard `
   --result results/usdjpy_m15_ema_cross/wfo_result.json
 ```
 
-Then visit `http://127.0.0.1:8000`. The dashboard shows aggregate metrics,
-joined validation equity and pips, window profit, best parameters, constraint
-status, parameter-robustness distributions, optimization trials, and
-validation trades. It reads the JSON again on each browser refresh. The
-default host is loopback-only; binding to another host requires the explicit
+Then visit `http://127.0.0.1:8000`. The dashboard is organized into four
+sections:
+
+- **Overview** joins validation equity and pips and compares optimization with
+  validation profit across windows.
+- **Windows** shows periods, best parameters, constraints, and optimization
+  trials for the selected window.
+- **Robustness** shows the validation distribution around each optimized
+  parameter set.
+- **Trades** analyzes all out-of-sample trades with summary metrics, pips
+  distribution, cumulative profit/pips, side/exit/window/metadata breakdowns,
+  filters, and an execution/metadata inspector.
+
+The dashboard reads the JSON again on each browser refresh. The default host
+is loopback-only; binding to another host requires the explicit
 `--allow-remote` option.
 
 `params["strategy_base"]["lookback_bars"]` controls how many confirmed input
