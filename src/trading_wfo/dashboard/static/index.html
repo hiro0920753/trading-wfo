@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>trading-wfo · Validation Dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">WALK-FORWARD VALIDATION</p>
+      <h1>Strategy telemetry</h1>
+    </div>
+    <div class="status"><span></span><b>LOCAL</b><small id="updated">Loading result…</small></div>
+  </header>
+
+  <main>
+    <section id="error" class="error hidden"></section>
+    <section id="metrics" class="metric-grid"></section>
+
+    <section class="panel chart-panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">VALIDATION EQUITY</p><h2>Capital across windows</h2></div>
+        <div class="legend"><span class="legend-line"></span> Equity</div>
+      </div>
+      <canvas id="equity-chart" height="280"></canvas>
+    </section>
+
+    <section class="panel chart-panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">VALIDATION PIPS</p><h2>Cumulative realized pips</h2></div>
+        <div class="legend"><span class="legend-line pips-line"></span> Realized pips</div>
+      </div>
+      <canvas id="pips-chart" height="240"></canvas>
+    </section>
+
+    <div class="two-column">
+      <section class="panel">
+        <div class="panel-heading"><div><p class="eyebrow">WINDOW P&L</p><h2>Optimization vs validation</h2></div><div class="legend legend-pair"><span><i class="legend-box optimization"></i>Optimization</span><span><i class="legend-box validation"></i>Validation</span></div></div>
+        <canvas id="window-chart" height="250"></canvas>
+      </section>
+      <section class="panel selected-panel">
+        <div class="panel-heading"><div><p class="eyebrow">SELECTED WINDOW</p><h2 id="selected-title">Window —</h2></div></div>
+        <dl id="selected-details" class="details"></dl>
+      </section>
+    </div>
+
+    <section class="panel table-panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">PARAMETER ROBUSTNESS</p><h2 id="stability-title">Validation distribution · Window —</h2></div>
+        <div class="legend"><span class="legend-box optimization"></span>Variants <span class="legend-box validation stability-center"></span>Optimized center</div>
+      </div>
+      <div id="stability-empty" class="empty-state hidden">Configure parameter_variations in WalkForwardRunner to generate this analysis.</div>
+      <div id="stability-content">
+        <div id="stability-metrics" class="stability-metrics"></div>
+        <canvas id="stability-chart" height="250"></canvas>
+        <div class="table-scroll stability-table"><table><thead><tr><th>#</th><th>Parameters</th><th>Offsets</th><th>Net profit</th><th>Return</th><th>Drawdown</th><th>Trades</th><th>Status</th></tr></thead><tbody id="stability-rows"></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="panel table-panel">
+      <div class="panel-heading"><div><p class="eyebrow">CHRONOLOGY</p><h2>Validation windows</h2></div></div>
+      <div class="table-scroll"><table><thead><tr><th>#</th><th>Optimization period</th><th>Validation period</th><th>Best parameters</th><th>Opt. profit</th><th>Opt. return</th><th>Opt. DD</th><th>Val. profit</th><th>Val. return</th><th>Val. DD</th><th>Val. trades</th><th>Constraint</th></tr></thead><tbody id="window-rows"></tbody></table></div>
+    </section>
+
+    <div class="two-column">
+      <section class="panel table-panel">
+        <div class="panel-heading"><div><p class="eyebrow">OPTIMIZATION</p><h2>Trials</h2></div><span id="trial-count" class="pill"></span></div>
+        <div class="table-scroll compact"><table><thead><tr><th>#</th><th>Parameters</th><th>Score</th><th>Status</th></tr></thead><tbody id="trial-rows"></tbody></table></div>
+      </section>
+      <section class="panel table-panel">
+        <div class="panel-heading"><div><p class="eyebrow">EXECUTION</p><h2>Validation trades</h2></div><span id="trade-count" class="pill"></span></div>
+        <div class="table-scroll compact"><table><thead><tr><th>ID</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>Reason</th></tr></thead><tbody id="trade-rows"></tbody></table></div>
+      </section>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

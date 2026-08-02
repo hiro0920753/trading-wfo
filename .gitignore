@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.package-audit-venv/
+build/
+dist/
+*.egg-info/
+mt5_data/
+old/
+results/

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install package and test dependencies
+        run: python -m pip install --upgrade pip ".[test]"
+      - name: Run tests
+        run: python -W error -m unittest discover -s tests -p "test_*.py" -v
+
+  package:
+    name: Package audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - name: Install release tools
+        run: python -m pip install --upgrade pip ".[release]"
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Validate distributions
+        run: python -m twine check dist/*
+      - name: Verify wheel contents
+        run: python -m zipfile --list dist/*.whl | grep "trading_wfo/dashboard/static/app.js"
