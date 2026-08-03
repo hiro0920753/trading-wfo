@@ -133,6 +133,7 @@ class DashboardTest(unittest.TestCase):
             index = self.get(app, "/")
             script = self.get(app, "/app.js")
             trade_chart = self.get(app, "/trade-chart.js")
+            chart_export = self.get(app, "/chart-export.js")
 
         self.assertEqual(health.status_code, 200)
         self.assertEqual(result.status_code, 200)
@@ -169,6 +170,12 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("markers+text", trade_chart.text)
         self.assertIn("chart-hover-values", trade_chart.text)
         self.assertIn("renderTradeChartV2", trade_chart.text)
+        self.assertNotIn("name:'Close'", trade_chart.text)
+        self.assertIn("dash:'dot'", trade_chart.text)
+        self.assertEqual(chart_export.status_code, 200)
+        self.assertIn("trading-wfo-all-charts.png", chart_export.text)
+        self.assertIn("saveCanvas", chart_export.text)
+        self.assertIn("save-all-charts", index.text)
 
     def test_market_directory_and_log_series_are_available_to_chart(self):
         with tempfile.TemporaryDirectory() as directory:
