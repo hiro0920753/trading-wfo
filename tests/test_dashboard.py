@@ -132,6 +132,7 @@ class DashboardTest(unittest.TestCase):
             result = self.get(app, "/api/result")
             index = self.get(app, "/")
             script = self.get(app, "/app.js")
+            trade_chart = self.get(app, "/trade-chart.js")
 
         self.assertEqual(health.status_code, 200)
         self.assertEqual(result.status_code, 200)
@@ -163,6 +164,11 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("theme-toggle", index.text)
         self.assertIn("trading-wfo-theme", index.text)
         self.assertIn("toggleTheme", script.text)
+        self.assertEqual(trade_chart.status_code, 200)
+        self.assertIn("Market prices", trade_chart.text)
+        self.assertIn("markers+text", trade_chart.text)
+        self.assertIn("chart-hover-values", trade_chart.text)
+        self.assertIn("renderTradeChartV2", trade_chart.text)
 
     def test_market_directory_and_log_series_are_available_to_chart(self):
         with tempfile.TemporaryDirectory() as directory:
