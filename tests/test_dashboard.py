@@ -168,7 +168,7 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(trade_chart.status_code, 200)
         self.assertIn("Market prices", trade_chart.text)
         self.assertIn("markers+text", trade_chart.text)
-        self.assertIn("chart-hover-values", trade_chart.text)
+        self.assertIn("state.chartHoverValues", trade_chart.text)
         self.assertIn("renderTradeChartV2", trade_chart.text)
         self.assertNotIn("name:'Close'", trade_chart.text)
         self.assertIn("dash:'dot'", trade_chart.text)
@@ -177,9 +177,11 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("saveCanvas", chart_export.text)
         self.assertIn("trading-wfo-all-trades.zip", chart_export.text)
         self.assertIn("Autoscale all axes", chart_export.text)
+        self.assertIn("Show cursor values", chart_export.text)
         self.assertIn("canvas[id]", chart_export.text)
         self.assertIn("save-all-charts", index.text)
         self.assertIn("save-all-trades", index.text)
+        self.assertNotIn("chart-hover-values", index.text)
 
     def test_market_directory_and_log_series_are_available_to_chart(self):
         with tempfile.TemporaryDirectory() as directory:

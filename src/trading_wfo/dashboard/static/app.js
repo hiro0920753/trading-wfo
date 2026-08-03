@@ -1,4 +1,4 @@
-const state={data:null,chartConfig:null,selected:0,page:'overview',tradeCurve:'pips',selectedTrade:null,selectedTradeData:null,chartTimeframes:[],chartSeries:[]};
+const state={data:null,chartConfig:null,selected:0,page:'overview',tradeCurve:'pips',selectedTrade:null,selectedTradeData:null,chartTimeframes:[],chartSeries:[],chartHoverValues:true};
 const themeColor=name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 function updateThemeControl(){const light=document.documentElement.dataset.theme==='light';document.querySelector('#theme-icon').textContent=light?'☀':'☾';document.querySelector('#theme-label').textContent=light?'Light':'Dark';document.querySelector('#theme-toggle').setAttribute('aria-label',`Switch to ${light?'dark':'light'} mode`)}
 function toggleTheme(){const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;localStorage.setItem('trading-wfo-theme',theme);updateThemeControl();if(state.data)render();if(state.selectedTradeData)renderTradeChart()}

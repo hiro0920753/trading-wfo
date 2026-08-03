@@ -20,7 +20,7 @@ async function renderTradeChartV2(){
     state.chartSeries.filter(series=>series.pane==='pane').forEach(series=>paneLabels.push(`${series.source}: ${series.column}`));
     const paneCount=paneLabels.length;
     const gap=.035,usable=1-gap*(paneCount-1),height=usable/paneCount;
-    const hoverValues=document.querySelector('#chart-hover-values')?.checked!==false;
+    const hoverValues=state.chartHoverValues;
     const layout={
       paper_bgcolor:colors.panel,plot_bgcolor:colors.panel,font:{color:colors.text,size:15},
       margin:{l:78,r:35,t:40,b:55},height:Math.max(620,270*paneCount),
@@ -65,4 +65,3 @@ async function renderTradeChartV2(){
 
 // app.js resolves this binding when controls or a trade selection request a redraw.
 renderTradeChart=renderTradeChartV2;
-document.querySelector('#chart-hover-values')?.addEventListener('change',renderTradeChartV2);
