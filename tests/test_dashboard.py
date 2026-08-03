@@ -160,6 +160,9 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("metadata.", script.text)
         self.assertIn("renderTradeChart", script.text)
         self.assertIn("/plotly.min.js", index.text)
+        self.assertIn("theme-toggle", index.text)
+        self.assertIn("trading-wfo-theme", index.text)
+        self.assertIn("toggleTheme", script.text)
 
     def test_market_directory_and_log_series_are_available_to_chart(self):
         with tempfile.TemporaryDirectory() as directory:
