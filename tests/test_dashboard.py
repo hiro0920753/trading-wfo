@@ -175,7 +175,11 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(chart_export.status_code, 200)
         self.assertIn("trading-wfo-all-charts.png", chart_export.text)
         self.assertIn("saveCanvas", chart_export.text)
+        self.assertIn("trading-wfo-all-trades.zip", chart_export.text)
+        self.assertIn("Autoscale all axes", chart_export.text)
+        self.assertIn("canvas[id]", chart_export.text)
         self.assertIn("save-all-charts", index.text)
+        self.assertIn("save-all-trades", index.text)
 
     def test_market_directory_and_log_series_are_available_to_chart(self):
         with tempfile.TemporaryDirectory() as directory:
