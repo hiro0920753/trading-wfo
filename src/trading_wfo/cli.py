@@ -17,6 +17,16 @@ def build_parser():
     dashboard.add_argument("--host", default="127.0.0.1")
     dashboard.add_argument("--port", type=int, default=8000)
     dashboard.add_argument(
+        "--market-data-dir",
+        type=Path,
+        help="directory containing market CSV files for Trade Inspector charts",
+    )
+    dashboard.add_argument(
+        "--log-dir",
+        type=Path,
+        help="directory containing time-series CSV logs",
+    )
+    dashboard.add_argument(
         "--allow-remote",
         action="store_true",
         help="allow binding to a non-loopback host",
@@ -35,9 +45,20 @@ def main(argv=None):
 
         from .dashboard import create_dashboard_app
 
-        app = create_dashboard_app(args.result)
+        try:
+            app = create_dashboard_app(
+                args.result,
+                market_data_directory=args.market_data_dir,
+                log_directory=args.log_dir,
+            )
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
         print(f"Dashboard: http://{args.host}:{args.port}")
         print(f"Result: {args.result.resolve()}")
+        if args.market_data_dir:
+            print(f"Market data: {args.market_data_dir.resolve()}")
+        if args.log_dir:
+            print(f"Logs: {args.log_dir.resolve()}")
         run(app, host=args.host, port=args.port)
 
 

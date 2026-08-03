@@ -35,9 +35,10 @@ dependencies = [
     "numpy>=1.23",
     "pandas>=1.5",
     "optuna>=3.6",
-    "rowlogger>=0.1.0",
+    "rowlogger>=0.2.0",
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    "plotly>=6.0",
 ]
 
 [project.scripts]

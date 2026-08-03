@@ -252,7 +252,9 @@ Open a saved WFO result in the read-only FastAPI dashboard:
 
 ```powershell
 trading-wfo dashboard `
-  --result results/usdjpy_m15_ema_cross/wfo_result.json
+  --result results/usdjpy_m15_ema_cross/wfo_result.json `
+  --market-data-dir mt5_data/USDJPY- `
+  --log-dir results/usdjpy_m15_ema_cross/logs
 ```
 
 Then visit `http://127.0.0.1:8000`. The dashboard is organized into four
@@ -266,7 +268,16 @@ sections:
   parameter set.
 - **Trades** analyzes all out-of-sample trades with summary metrics, pips
   distribution, cumulative profit/pips, side/exit/window/metadata breakdowns,
-  filters, and an execution/metadata inspector.
+  filters, and an execution/metadata inspector. When `--market-data-dir` is
+  set, selecting a trade also shows candles, Bid/Ask, and entry/exit markers.
+  Higher-timeframe candle panes can be added or removed in the browser. Numeric
+  columns from market data or RowLogger CSV files under `--log-dir` can be
+  overlaid on price or displayed in independent panes. The Plotly mode bar and
+  mouse controls provide zoom, pan, reset, and PNG export.
+
+Both directory options search CSV files recursively. Candle timeframes must be
+equal to or coarser than the source CSV interval; the dashboard never creates a
+finer timeframe than the supplied data.
 
 The dashboard reads the JSON again on each browser refresh. The default host
 is loopback-only; binding to another host requires the explicit

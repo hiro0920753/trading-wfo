@@ -59,6 +59,7 @@ def dashboard_payload():
                     "trades": [
                         {
                             "position_id": 1,
+                            "time": 1,
                             "side": "long",
                             "entry_price": 150.0,
                             "exit_price": 151.0,
@@ -157,6 +158,59 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("drawTradeDistribution", script.text)
         self.assertIn("renderTradeInspector", script.text)
         self.assertIn("metadata.", script.text)
+        self.assertIn("renderTradeChart", script.text)
+        self.assertIn("/plotly.min.js", index.text)
+
+    def test_market_directory_and_log_series_are_available_to_chart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result_path = root / "result.json"
+            result_path.write_text(json.dumps(dashboard_payload()), encoding="utf-8")
+            market = root / "market" / "USDJPY" / "M15"
+            market.mkdir(parents=True)
+            market.joinpath("prices.csv").write_text(
+                "time,open,high,low,close,bid,ask,volume\n"
+                "2026-01-01T00:00:00Z,150,151,149,150.5,150.49,150.51,10\n"
+                "2026-01-01T00:15:00Z,150.5,152,150,151,150.99,151.01,20\n"
+                "2026-01-01T00:30:00Z,151,153,150.5,152,151.99,152.01,30\n",
+                encoding="utf-8",
+            )
+            logs = root / "logs"
+            logs.mkdir()
+            logs.joinpath("strategy.csv").write_text(
+                "time,rsi,prediction\n"
+                "2026-01-01T00:00:00Z,45,0.4\n"
+                "2026-01-01T00:15:00Z,55,0.7\n",
+                encoding="utf-8",
+            )
+            app = create_dashboard_app(
+                result_path, market_data_directory=market.parent, log_directory=logs
+            )
+            config = self.get(app, "/api/chart/config")
+            candles = self.get(
+                app,
+                "/api/chart/market?start=1767225600&end=1767227400&timeframe=1800",
+            )
+            log_rows = self.get(
+                app, "/api/chart/logs?start=1767225600&end=1767227400"
+            )
+            invalid = self.get(
+                app,
+                "/api/chart/market?start=1767225600&end=1767227400&timeframe=300",
+            )
+            plotly = self.get(app, "/plotly.min.js")
+
+        self.assertEqual(config.status_code, 200)
+        self.assertEqual(config.json()["base_timeframe_seconds"], 900)
+        self.assertIn(1800, config.json()["allowed_timeframes"])
+        self.assertEqual(config.json()["log_columns"], ["rsi", "prediction"])
+        self.assertEqual(candles.status_code, 200)
+        self.assertEqual(len(candles.json()["records"]), 2)
+        self.assertEqual(candles.json()["records"][0]["high"], 152)
+        self.assertEqual(len(log_rows.json()["records"]), 2)
+        self.assertEqual(invalid.status_code, 422)
+        self.assertEqual(plotly.status_code, 200)
+        self.assertGreater(len(plotly.content), 100_000)
 
     def test_result_api_reports_missing_and_invalid_files(self):
         with tempfile.TemporaryDirectory() as directory:
