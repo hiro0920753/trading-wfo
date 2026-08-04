@@ -137,7 +137,7 @@ runner = WalkForwardRunner(
     n_trials=50,
     optimization_workers=4,
     progress=True,
-    progress_path="results/wfo_result.progress.json",
+    result_path="results/wfo_result.json",
 )
 result = runner.run(dataset)
 ```
@@ -150,17 +150,19 @@ on `optimization_data`, and runs the selected parameters once on
 
 Windows always run sequentially so validation capital and chronology cannot be
 mixed. `optimization_workers` parallelizes only the independent optimization
-trials inside the active window. The progress JSON is written atomically and
-can be displayed while the run is active:
+trials inside the active window. After each validation window, `result_path` is
+atomically replaced with the latest partial result. Its companion progress JSON
+is updated as trials complete and both can be displayed while the run is active:
 
 ```bash
 trading-wfo dashboard --result results/wfo_result.json
 ```
 
-The dashboard automatically reads `results/wfo_result.progress.json` and shows
-window/trial completion, worker count, elapsed time, remaining time, and the
-estimated completion timestamp in the Progress tab. Use `--progress-file` when
-the tracker is stored elsewhere.
+The dashboard refreshes profit, pips, equity, windows, robustness, and trades
+after each completed window. It also reads `results/wfo_result.progress.json`
+for trial completion, worker count, elapsed/remaining time, and the estimated
+completion timestamp. Use `progress_path` and `--progress-file` only when the
+tracker should be stored elsewhere.
 
 To inspect whether the optimized point sits on a stable parameter region,
 configure additive offsets for selected numeric parameters:

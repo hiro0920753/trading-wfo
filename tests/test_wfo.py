@@ -193,6 +193,7 @@ class WalkForwardRunnerTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory:
             progress_path = Path(directory) / "run.progress.json"
+            result_path = Path(directory) / "run.json"
             runner = WalkForwardRunner(
                 simulator_factory=lambda data: TradingSimulator(PARAMS, DummyTradingLog(), data),
                 strategy_factory=lambda params, model: OneTradeStrategy(params["lot_size"], model),
@@ -201,9 +202,12 @@ class WalkForwardRunnerTest(unittest.TestCase):
                     n_startup_trials=2,
                 ),
                 n_trials=6, optimization_workers=2, progress_path=progress_path,
+                result_path=result_path,
             )
             result = runner.run(dataset)
             progress = json.loads(progress_path.read_text(encoding="utf-8"))
+            live_result = json.loads(result_path.read_text(encoding="utf-8"))
+            temporary_exists = result_path.with_suffix(".json.tmp").exists()
 
         self.assertEqual([window.index for window in result.windows], [0, 1, 2])
         self.assertEqual(progress["status"], "completed")
@@ -211,6 +215,8 @@ class WalkForwardRunnerTest(unittest.TestCase):
         self.assertEqual(progress["completed_trials_all_windows"], 18)
         self.assertEqual(progress["optimization_workers"], 2)
         self.assertEqual(progress["estimated_remaining_seconds"], 0)
+        self.assertEqual(len(live_result["windows"]), 3)
+        self.assertFalse(temporary_exists)
 
     def test_result_constraints_reject_trials_and_are_saved(self):
         dataset = TradingDataset.from_dataframe(

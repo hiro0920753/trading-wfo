@@ -195,6 +195,16 @@ def create_dashboard_app(result_path, *, market_data_directory=None, log_directo
     def result():
         return JSONResponse(_load_result(result_path))
 
+    @app.get("/api/result/status")
+    def result_status():
+        try:
+            stat = result_path.stat()
+        except FileNotFoundError:
+            return {"exists": False, "signature": None}
+        except OSError as error:
+            raise HTTPException(status_code=500, detail=f"could not stat result file: {error}") from error
+        return {"exists": True, "signature": f"{stat.st_mtime_ns}:{stat.st_size}"}
+
     @app.get("/api/progress")
     def progress():
         if not progress_path.is_file():

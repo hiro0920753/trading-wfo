@@ -253,10 +253,12 @@ def _save_json(payload, filepath, *, indent):
     path = Path(filepath)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as file:
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        with temporary.open("w", encoding="utf-8") as file:
             json.dump(
                 payload, file, ensure_ascii=False, indent=indent, allow_nan=False
             )
+        temporary.replace(path)
     except OSError as error:
         raise ResultSaveError(path, error) from error
 

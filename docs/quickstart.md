@@ -41,7 +41,7 @@ runner = WalkForwardRunner(
     n_trials=50,
     progress=True,
     optimization_workers=4,
-    progress_path="results/wfo_result.progress.json",
+    result_path="results/wfo_result.json",
 )
 
 result = runner.run(dataset)
@@ -55,3 +55,5 @@ period occurs before both and requires a user-provided trainer.
 Walk-forward windows are deliberately sequential. Only trials within the
 current optimization period are parallelized. Start the dashboard with the
 same result path to monitor the Progress tab during a run.
+Completed windows are saved atomically, so all performance tabs refresh without
+reading a partially written JSON file.

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from .metrics import calculate_metrics
 from .constraints import evaluate_constraints
 from .optimizer import Optimizer
@@ -33,6 +35,7 @@ class WalkForwardRunner:
         max_parameter_variations=100,
         optimization_workers=None,
         progress_path=None,
+        result_path=None,
     ):
         self.simulator_factory = simulator_factory
         self.validation_simulator_factory = (
@@ -69,6 +72,9 @@ class WalkForwardRunner:
             if progress is True
             else None if progress is False else progress
         )
+        self.result_path = None if result_path is None else Path(result_path)
+        if progress_path is None and self.result_path is not None:
+            progress_path = self.result_path.with_suffix(".progress.json")
         file_progress = (
             None if progress_path is None else
             ProgressTracker(progress_path, workers=self.optimization_workers)
@@ -147,6 +153,11 @@ class WalkForwardRunner:
                     parameter_stability_result=stability_result,
                 )
             )
+            if self.result_path is not None:
+                WalkForwardResult(
+                    windows=list(window_results),
+                    aggregate_metrics=self._aggregate_metrics(window_results),
+                ).save_json(self.result_path)
             if self.progress is not None:
                 self.progress.window_completed(
                     window.index,
@@ -156,10 +167,13 @@ class WalkForwardRunner:
 
         if self.progress is not None:
             self.progress.wfo_completed(total_windows)
-        return WalkForwardResult(
+        result = WalkForwardResult(
             windows=window_results,
             aggregate_metrics=self._aggregate_metrics(window_results),
         )
+        if self.result_path is not None and not window_results:
+            result.save_json(self.result_path)
+        return result
 
     def _evaluate_parameter_stability(
         self,
