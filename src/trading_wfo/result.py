@@ -1,5 +1,6 @@
 import json
 import math
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -258,7 +259,14 @@ def _save_json(payload, filepath, *, indent):
             json.dump(
                 payload, file, ensure_ascii=False, indent=indent, allow_nan=False
             )
-        temporary.replace(path)
+        for attempt in range(40):
+            try:
+                temporary.replace(path)
+                break
+            except PermissionError:
+                if attempt == 39:
+                    raise
+                time.sleep(0.025)
     except OSError as error:
         raise ResultSaveError(path, error) from error
 

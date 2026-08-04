@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -107,6 +108,37 @@ class FixedCustomOptimizer:
 
 
 class WalkForwardRunnerTest(unittest.TestCase):
+    def test_progress_file_retries_windows_replace_contention(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "progress.json"
+            tracker = ProgressTracker(path)
+            original_replace = Path.replace
+            attempts = 0
+
+            def temporarily_locked(source, target):
+                nonlocal attempts
+                attempts += 1
+                if attempts < 3:
+                    raise PermissionError(5, "destination is temporarily locked")
+                return original_replace(source, target)
+
+            with patch.object(Path, "replace", temporarily_locked), patch(
+                "trading_wfo.progress.time.sleep"
+            ):
+                tracker.wfo_started(1)
+
+            self.assertTrue(path.is_file())
+            self.assertEqual(attempts, 3)
+
+    def test_progress_file_lock_never_aborts_the_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tracker = ProgressTracker(Path(directory) / "progress.json")
+            with patch.object(Path, "replace", side_effect=PermissionError(5, "locked")), patch(
+                "trading_wfo.progress.time.sleep"
+            ):
+                tracker.wfo_started(1)
+                tracker.window_started(0, 1)
+
     def make_runner(
         self, trainer=None, progress=False, parameter_variations=None
     ):

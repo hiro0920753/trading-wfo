@@ -116,7 +116,16 @@ class ProgressTracker:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_suffix(self.path.suffix + ".tmp")
         temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        temporary.replace(self.path)
+        # Windows denies replace() while the dashboard or an indexer briefly
+        # holds the destination open. Progress reporting must never abort WFO.
+        for attempt in range(20):
+            try:
+                temporary.replace(self.path)
+                break
+            except PermissionError:
+                if attempt == 19:
+                    return
+                time.sleep(0.025)
 
     @staticmethod
     def _now():
