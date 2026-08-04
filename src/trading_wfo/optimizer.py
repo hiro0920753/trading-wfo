@@ -71,7 +71,7 @@ class TPEOptimizer:
         direction="maximize",
         seed=42,
         n_startup_trials=10,
-        n_jobs=1,
+        workers=1,
     ):
         if direction not in {"maximize", "minimize"}:
             raise ValueError("direction must be 'maximize' or 'minimize'")
@@ -86,7 +86,9 @@ class TPEOptimizer:
         self.direction = direction
         self.seed = seed
         self.n_startup_trials = n_startup_trials
-        self.n_jobs = n_jobs
+        if workers <= 0:
+            raise ValueError("workers must be positive")
+        self.workers = workers
         self.study = None
 
     def optimize(
@@ -186,7 +188,7 @@ class TPEOptimizer:
             study.optimize(
                 wrapped,
                 n_trials=n_trials,
-                n_jobs=self.n_jobs,
+                n_jobs=self.workers,
                 show_progress_bar=False,
                 callbacks=callbacks,
             )

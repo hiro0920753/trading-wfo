@@ -17,6 +17,7 @@ from trading_wfo import (
     ObjectiveResult,
     OptimizationResult,
     OptimizationTrial,
+    ProgressTracker,
     TPEOptimizer,
     TradingDataset,
     TradingSimulator,
@@ -185,6 +186,31 @@ class WalkForwardRunnerTest(unittest.TestCase):
         self.assertIn("[WFO] Starting 1 window(s)", text)
         self.assertIn("[TPE] Trial 1/6", text)
         self.assertIn("[WFO] Completed 1 window(s)", text)
+
+    def test_writes_dashboard_progress_and_keeps_windows_sequential(self):
+        dataset = TradingDataset.from_dataframe(
+            make_data(16), optimization_period="4d", validation_period="4d"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            progress_path = Path(directory) / "run.progress.json"
+            runner = WalkForwardRunner(
+                simulator_factory=lambda data: TradingSimulator(PARAMS, DummyTradingLog(), data),
+                strategy_factory=lambda params, model: OneTradeStrategy(params["lot_size"], model),
+                optimizer=TPEOptimizer(
+                    {"lot_size": CategoricalParameter([0.01, 0.02])}, seed=4,
+                    n_startup_trials=2,
+                ),
+                n_trials=6, optimization_workers=2, progress_path=progress_path,
+            )
+            result = runner.run(dataset)
+            progress = json.loads(progress_path.read_text(encoding="utf-8"))
+
+        self.assertEqual([window.index for window in result.windows], [0, 1, 2])
+        self.assertEqual(progress["status"], "completed")
+        self.assertEqual(progress["completed_windows"], 3)
+        self.assertEqual(progress["completed_trials_all_windows"], 18)
+        self.assertEqual(progress["optimization_workers"], 2)
+        self.assertEqual(progress["estimated_remaining_seconds"], 0)
 
     def test_result_constraints_reject_trials_and_are_saved(self):
         dataset = TradingDataset.from_dataframe(

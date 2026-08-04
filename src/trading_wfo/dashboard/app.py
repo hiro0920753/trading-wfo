@@ -143,9 +143,13 @@ def _resolve_directory(value, label):
     return path
 
 
-def create_dashboard_app(result_path, *, market_data_directory=None, log_directory=None):
+def create_dashboard_app(result_path, *, market_data_directory=None, log_directory=None, progress_path=None):
     """Create a read-only localhost dashboard for one WFO result JSON file."""
     result_path = Path(result_path).expanduser().resolve()
+    progress_path = (
+        result_path.with_suffix(".progress.json")
+        if progress_path is None else Path(progress_path).expanduser().resolve()
+    )
     market_directory = _resolve_directory(market_data_directory, "market data")
     logs_directory = _resolve_directory(log_directory, "log")
     static_directory = Path(__file__).with_name("static")
@@ -184,11 +188,23 @@ def create_dashboard_app(result_path, *, market_data_directory=None, log_directo
             "result_path": str(result_path),
             "market_data_directory": str(market_directory) if market_directory else None,
             "log_directory": str(logs_directory) if logs_directory else None,
+            "progress_path": str(progress_path),
         }
 
     @app.get("/api/result")
     def result():
         return JSONResponse(_load_result(result_path))
+
+    @app.get("/api/progress")
+    def progress():
+        if not progress_path.is_file():
+            return {"status": "idle", "message": "No active WFO progress file"}
+        try:
+            with progress_path.open(encoding="utf-8") as file:
+                payload = json.load(file)
+        except (OSError, json.JSONDecodeError) as error:
+            raise HTTPException(status_code=503, detail=f"could not read progress: {error}") from error
+        return JSONResponse(payload)
 
     @app.get("/api/chart/config")
     def chart_config():

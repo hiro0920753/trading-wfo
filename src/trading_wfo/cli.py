@@ -27,6 +27,10 @@ def build_parser():
         help="directory containing time-series CSV logs",
     )
     dashboard.add_argument(
+        "--progress-file", type=Path,
+        help="live ProgressTracker JSON (default: RESULT.progress.json)",
+    )
+    dashboard.add_argument(
         "--allow-remote",
         action="store_true",
         help="allow binding to a non-loopback host",
@@ -50,6 +54,7 @@ def main(argv=None):
                 args.result,
                 market_data_directory=args.market_data_dir,
                 log_directory=args.log_dir,
+                progress_path=args.progress_file,
             )
         except ValueError as error:
             raise SystemExit(str(error)) from error
@@ -59,6 +64,8 @@ def main(argv=None):
             print(f"Market data: {args.market_data_dir.resolve()}")
         if args.log_dir:
             print(f"Logs: {args.log_dir.resolve()}")
+        if args.progress_file:
+            print(f"Progress: {args.progress_file.resolve()}")
         run(app, host=args.host, port=args.port)
 
 

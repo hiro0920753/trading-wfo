@@ -15,6 +15,7 @@
       <a href="#windows" data-page="windows">Windows</a>
       <a href="#robustness" data-page="robustness">Robustness</a>
       <a href="#trades" data-page="trades">Trades</a>
+      <a href="#progress" data-page="progress">Progress</a>
     </nav>
     <button id="save-all-charts" class="theme-toggle export-all" type="button" aria-label="Save all charts as PNG"><span>⇩</span><b>Save all PNG</b></button>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch color theme"><span id="theme-icon">☾</span><b id="theme-label">Dark</b></button>
@@ -23,6 +24,19 @@
 
   <main>
     <section id="error" class="error hidden"></section>
+
+    <section class="page hidden" data-page-content="progress">
+      <div class="page-heading"><p class="eyebrow">LIVE EXECUTION</p><h1>Walk-forward progress</h1><p>Windows run sequentially; optimization trials may run in parallel inside the active window.</p></div>
+      <section id="progress-metrics" class="metric-grid"></section>
+      <section class="panel progress-panel">
+        <div class="panel-heading"><div><p class="eyebrow">CURRENT RUN</p><h2 id="progress-title">Waiting for progress…</h2></div><span id="progress-updated" class="pill">Not connected</span></div>
+        <div class="progress-track"><div id="window-progress-bar" class="progress-fill"></div></div>
+        <div class="progress-label"><span>Windows</span><strong id="window-progress-label">0 / 0</strong></div>
+        <div class="progress-track trial"><div id="trial-progress-bar" class="progress-fill"></div></div>
+        <div class="progress-label"><span>Trials in current window</span><strong id="trial-progress-label">0 / 0</strong></div>
+        <dl id="progress-details" class="details progress-details"></dl>
+      </section>
+    </section>
 
     <section class="page" data-page-content="overview">
       <div class="page-heading"><p class="eyebrow">WALK-FORWARD VALIDATION</p><h1>Strategy overview</h1><p>Out-of-sample performance across every validation window.</p></div>

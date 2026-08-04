@@ -1,6 +1,8 @@
 import csv
 import json
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -13,6 +15,29 @@ from trading_wfo import (
 
 
 class TPEOptimizerTest(unittest.TestCase):
+    def test_parallelizes_trials_with_configured_workers(self):
+        lock = threading.Lock()
+        active = 0
+        maximum_active = 0
+
+        def objective(params):
+            nonlocal active, maximum_active
+            with lock:
+                active += 1
+                maximum_active = max(maximum_active, active)
+            time.sleep(0.03)
+            with lock:
+                active -= 1
+            return float(params["value"])
+
+        optimizer = TPEOptimizer(
+            {"value": IntParameter(1, 20)}, workers=3, seed=5
+        )
+        result = optimizer.optimize(objective, n_trials=6)
+
+        self.assertEqual(len(result.trials), 6)
+        self.assertGreater(maximum_active, 1)
+
     def test_finds_best_categorical_parameter_and_keeps_metrics(self):
         optimizer = TPEOptimizer(
             {"value": CategoricalParameter([1, 2, 3])},

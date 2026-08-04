@@ -1,7 +1,7 @@
 from .metrics import calculate_metrics
 from .constraints import evaluate_constraints
 from .optimizer import Optimizer
-from .progress import CLIProgress
+from .progress import CLIProgress, CompositeProgress, ProgressTracker
 from .result import (
     ObjectiveResult,
     ParameterStabilityResult,
@@ -14,7 +14,7 @@ from .window import DatasetMode, TradingDataset
 
 
 class WalkForwardRunner:
-    """Train, optimize, and validate every chronological dataset window."""
+    """Run chronological windows sequentially; an optimizer may parallelize trials."""
 
     def __init__(
         self,
@@ -31,6 +31,8 @@ class WalkForwardRunner:
         validation_simulator_factory=None,
         parameter_variations=None,
         max_parameter_variations=100,
+        optimization_workers=None,
+        progress_path=None,
     ):
         self.simulator_factory = simulator_factory
         self.validation_simulator_factory = (
@@ -55,11 +57,24 @@ class WalkForwardRunner:
             None if parameter_variations is None else dict(parameter_variations)
         )
         self.max_parameter_variations = max_parameter_variations
-        self.progress = (
+        if optimization_workers is not None:
+            if optimization_workers <= 0:
+                raise ValueError("optimization_workers must be positive")
+            if not hasattr(self.optimizer, "workers"):
+                raise TypeError("optimization_workers requires an optimizer with workers support")
+            self.optimizer.workers = optimization_workers
+        self.optimization_workers = getattr(self.optimizer, "workers", 1)
+        console_progress = (
             CLIProgress()
             if progress is True
             else None if progress is False else progress
         )
+        file_progress = (
+            None if progress_path is None else
+            ProgressTracker(progress_path, workers=self.optimization_workers)
+        )
+        reporters = [item for item in (console_progress, file_progress) if item is not None]
+        self.progress = None if not reporters else reporters[0] if len(reporters) == 1 else CompositeProgress(*reporters)
 
     def run(self, dataset: TradingDataset):
         if not isinstance(dataset, TradingDataset):

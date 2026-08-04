@@ -12,7 +12,7 @@ from .optimizer import (
     Optimizer,
     TPEOptimizer,
 )
-from .progress import CLIProgress
+from .progress import CLIProgress, CompositeProgress, ProgressTracker
 from .result import (
     OptimizationResult,
     OptimizationTrial,
@@ -35,6 +35,8 @@ __all__ = [
     "CloseRequest",
     "CategoricalParameter",
     "CLIProgress",
+    "CompositeProgress",
+    "ProgressTracker",
     "ConstraintResult",
     "ExecutionConfig",
     "ResultSaveError",
