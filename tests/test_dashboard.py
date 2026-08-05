@@ -206,6 +206,10 @@ class DashboardTest(unittest.TestCase):
                 "profit_factor": 1.4,
                 "win_rate": 55,
                 "total_trades": 1,
+                "steps_processed": 50,
+                "total_steps": 100,
+                "progress_pct": 50,
+                "status": "running",
             },
             "trades": [{
                 "position_id": 1, "time": 1, "exit_time": 2,
@@ -232,8 +236,10 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(payload["aggregate_metrics"]["net_profit"], 250)
         self.assertEqual(payload["windows"][0]["validation_result"]["trades"], simulation["trades"])
         self.assertIn("applyResultMode", script.text)
+        self.assertIn("renderBacktestStatus", script.text)
         self.assertIn("Backtest overview", script.text)
         self.assertIn("data-wfo-only", index.text)
+        self.assertIn("data-backtest-only", index.text)
 
     def test_market_directory_and_log_series_are_available_to_chart(self):
         with tempfile.TemporaryDirectory() as directory:

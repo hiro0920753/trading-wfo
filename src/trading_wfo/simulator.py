@@ -1,4 +1,5 @@
 import copy
+from time import monotonic
 
 from ._account import Account
 from ._data import prepare_market_data
@@ -360,14 +361,30 @@ class TradingSimulator:
             raise TypeError("strategy must return an Action or None")
         return action
 
-    def run(self, strategy, data=None, *, close_positions_at_end=True):
+    def run(
+        self,
+        strategy,
+        data=None,
+        *,
+        close_positions_at_end=True,
+        result_path=None,
+        live_update_interval=2.0,
+    ):
         """Run one simulation, executing each Action on the following bar."""
+        if live_update_interval <= 0:
+            raise ValueError("live_update_interval must be positive")
         if data is not None:
             self.set_data(data)
         self._reset_simulation_state()
 
         equity_curve = []
         trading_stopped = False
+        last_live_update = monotonic()
+        live_trade_count = 0
+        if result_path is not None:
+            self._make_result(equity_curve, 0, status="running").save_json(
+                result_path
+            )
 
         for step_index in range(self._step_count):
             data_index = step_index + self._lookback_bars
@@ -398,6 +415,16 @@ class TradingSimulator:
                 }
             )
 
+            if result_path is not None:
+                now = monotonic()
+                trade_completed = len(self._trade_records) != live_trade_count
+                if trade_completed or now - last_live_update >= live_update_interval:
+                    self._make_result(
+                        equity_curve, step_index + 1, status="running"
+                    ).save_json(result_path)
+                    last_live_update = now
+                    live_trade_count = len(self._trade_records)
+
             if trading_stopped:
                 continue
             action = self._call_strategy(strategy, context)
@@ -422,6 +449,16 @@ class TradingSimulator:
                 }
             )
 
+        result = self._make_result(
+            equity_curve, self._step_count, status="completed"
+        )
+        if result_path is not None:
+            result.save_json(result_path)
+        if self._trading_log is not None and hasattr(self._trading_log, "save"):
+            self._trading_log.save()
+        return result
+
+    def _make_result(self, equity_curve, steps_processed, *, status):
         metrics = calculate_metrics(
             initial_balance=self._account_config.initial_balance,
             final_balance=self._account.balance,
@@ -440,12 +477,16 @@ class TradingSimulator:
                 "slippage_pips_per_execution": float(
                     self._execution_config.slippage_pips
                 ),
-                "steps_processed": self._step_count,
+                "steps_processed": steps_processed,
+                "total_steps": self._step_count,
+                "progress_pct": (
+                    100.0 * steps_processed / self._step_count
+                    if self._step_count else 100.0
+                ),
+                "status": status,
                 "rejected_order_count": len(self._rejected_orders),
             }
         )
-        if self._trading_log is not None and hasattr(self._trading_log, "save"):
-            self._trading_log.save()
         return SimulationResult(
             metrics=metrics,
             trades=copy.deepcopy(self._trade_records),

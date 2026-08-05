@@ -40,6 +40,11 @@
 
     <section class="page" data-page-content="overview">
       <div class="page-heading"><p id="overview-eyebrow" class="eyebrow">WALK-FORWARD VALIDATION</p><h1 id="overview-title">Strategy overview</h1><p id="overview-description">Out-of-sample performance across every validation window.</p></div>
+      <section class="panel backtest-live mode-hidden" data-backtest-only>
+        <div class="panel-heading"><div><p class="eyebrow">LIVE BACKTEST</p><h2 id="backtest-status">Waiting for simulation…</h2></div><span id="backtest-updated" class="pill"></span></div>
+        <div class="progress-track"><div id="backtest-progress-bar" class="progress-fill"></div></div>
+        <div class="progress-label"><span>Bars processed</span><strong id="backtest-progress-label">0 / 0</strong></div>
+      </section>
       <section id="metrics" class="metric-grid"></section>
       <section class="panel chart-panel">
         <div class="panel-heading"><div><p class="eyebrow">VALIDATION EQUITY</p><h2>Capital across windows</h2></div><div class="legend"><span class="legend-line"></span>Equity</div></div>

@@ -1,4 +1,7 @@
 import unittest
+import json
+import tempfile
+from pathlib import Path
 
 import pandas as pd
 
@@ -71,6 +74,33 @@ class OpenThenCloseShortStrategy:
 
 
 class TradingSimulatorRunTest(unittest.TestCase):
+    def test_live_backtest_result_is_available_during_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "backtest.json"
+
+            class ObservingStrategy(OpenThenCloseStrategy):
+                saw_running_result = False
+
+                def on_bar(self, context):
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    self.saw_running_result = payload["metrics"]["status"] == "running"
+                    return super().on_bar(context)
+
+            strategy = ObservingStrategy()
+            result = TradingSimulator(
+                make_params(), DummyTradingLog(), make_data()
+            ).run(
+                strategy,
+                result_path=path,
+                live_update_interval=999,
+            )
+            saved = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertTrue(strategy.saw_running_result)
+        self.assertEqual(saved["metrics"]["status"], "completed")
+        self.assertEqual(saved["metrics"]["progress_pct"], 100)
+        self.assertEqual(saved["trades"], result.trades)
+
     def test_closes_remaining_position_at_final_bid(self):
         class OpenOnceStrategy:
             def __init__(self):

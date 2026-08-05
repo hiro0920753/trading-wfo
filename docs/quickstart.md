@@ -7,9 +7,11 @@
 ```python
 dataset = TradingDataset.from_dataframe(data)
 simulator = TradingSimulator(PARAMS, None, dataset.backtest_data)
-result = simulator.run(MyStrategy())
+result = simulator.run(
+    MyStrategy(), result_path="results/backtest.json",
+    live_update_interval=2.0,
+)
 print(result.metrics)
-result.save_json("results/backtest.json")
 ```
 
 View it with `trading-wfo dashboard --result results/backtest.json`. The
