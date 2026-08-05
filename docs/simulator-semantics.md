@@ -9,18 +9,21 @@ retain timezone information. Prices must be finite and `ask >= bid`.
 
 ## Decision and execution order
 
-For each confirmed bar `t`, processing is deterministic:
+At each current quote time `t`, processing is deterministic:
 
-1. execute the `Action` submitted on bar `t-1` at bar `t` Bid/Ask;
-2. process close requests before new orders;
-3. refresh Account, Portfolio, margin, and unrealized P&L;
-4. apply StopOut when the configured margin level is breached;
-5. append the equity point;
-6. call the strategy with data confirmed through bar `t`;
-7. store the returned `Action` for bar `t+1`.
+1. expose only bars confirmed through `t-1`;
+2. refresh Account, Portfolio, margin, and unrealized P&L with the Bid/Ask at
+   `t`;
+3. apply StopOut when the configured margin level is breached;
+4. call the strategy with confirmed bars through `t-1` and the current quote
+   at `t`;
+5. execute its close requests and then new market orders using that same `t`
+   Bid/Ask, adjusted for slippage;
+6. append the equity point.
 
-This prevents an action based on a bar's close from filling at an earlier
-price from that same bar.
+This prevents the close of the still-forming bar at `t` from leaking into the
+decision while keeping the decision quote and market-order execution price on
+the same timestamp.
 
 ## Price rules
 

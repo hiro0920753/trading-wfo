@@ -87,7 +87,7 @@ class CalculationAuditTest(unittest.TestCase):
         simulator = TradingSimulator(
             params,
             None,
-            market_data([100, 100, 100, 121]),
+            market_data([100, 100, 121, 121]),
             execution_config=ExecutionConfig(
                 commission_per_lot_per_side=10
             ),

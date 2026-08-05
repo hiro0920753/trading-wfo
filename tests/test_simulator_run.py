@@ -121,33 +121,55 @@ class TradingSimulatorRunTest(unittest.TestCase):
         self.assertEqual(result.metrics["total_trades"], 1)
         self.assertEqual(simulator._portfolio.positions(), ())
 
-    def test_executes_open_and_close_on_the_following_bar(self):
+    def test_uses_confirmed_bars_and_executes_at_the_current_quote(self):
         data = make_data()
+        strategy = OpenThenCloseStrategy()
         simulator = TradingSimulator(make_params(), DummyTradingLog(), data)
 
-        result = simulator.run(OpenThenCloseStrategy())
+        contexts = []
+
+        def observe(context):
+            contexts.append(context)
+            return strategy.on_bar(context)
+
+        result = simulator.run(observe)
 
         self.assertEqual(len(result.trades), 1)
         trade = result.trades[0]
-        self.assertEqual(trade["entry_price"], 121.0)
-        self.assertEqual(trade["exit_price"], 130.0)
-        self.assertEqual(trade["time"], data.loc[2, "time"].timestamp())
-        self.assertEqual(trade["exit_time"], data.loc[3, "time"].timestamp())
+        self.assertEqual(contexts[0]["bars"].iloc[-1]["time"], data.loc[0, "time"])
+        self.assertEqual(contexts[0]["close"], data.loc[0, "close"])
+        self.assertEqual(contexts[0]["bid"], data.loc[1, "bid"])
+        self.assertEqual(contexts[0]["ask"], data.loc[1, "ask"])
+        self.assertEqual(contexts[0]["time"], data.loc[1, "time"].timestamp())
+        self.assertEqual(trade["entry_price"], contexts[0]["ask"])
+        self.assertEqual(trade["exit_price"], contexts[1]["bid"])
+        self.assertEqual(trade["time"], data.loc[1, "time"].timestamp())
+        self.assertEqual(trade["exit_time"], data.loc[2, "time"].timestamp())
         self.assertEqual(trade["realized_profit"], 9.0)
         self.assertEqual(result.metrics["final_balance"], 10_009.0)
 
-    def test_does_not_execute_an_action_from_the_last_bar(self):
+    def test_executes_an_action_at_the_last_current_quote(self):
         data = make_data().iloc[:3]
         simulator = TradingSimulator(make_params(), DummyTradingLog(), data)
 
-        simulator.run(
-            lambda context: Action(
-                orders=[Order(side=Side.LONG, lot_size=0.01)]
-            ),
-            close_positions_at_end=False,
-        )
+        class OpenOnLastQuote:
+            calls = 0
+
+            def on_bar(self, context):
+                self.calls += 1
+                if self.calls == 2:
+                    return Action(
+                        orders=[Order(side=Side.LONG, lot_size=0.01)]
+                    )
+                return Action()
+
+        simulator.run(OpenOnLastQuote(), close_positions_at_end=False)
 
         self.assertEqual(len(simulator._portfolio.long_positions()), 1)
+        self.assertEqual(
+            simulator._portfolio.long_positions()[0].entry_price,
+            data.iloc[-1]["ask"],
+        )
 
     def test_rejects_dict_actions_at_strategy_boundary(self):
         data = make_data().iloc[:3]
@@ -170,8 +192,8 @@ class TradingSimulatorRunTest(unittest.TestCase):
         result = simulator.run(OpenThenCloseStrategy())
         trade = result.trades[0]
 
-        self.assertEqual(trade["entry_price"], 123.0)
-        self.assertEqual(trade["exit_price"], 128.0)
+        self.assertEqual(trade["entry_price"], 113.0)
+        self.assertEqual(trade["exit_price"], 118.0)
         self.assertEqual(trade["gross_profit"], 5.0)
         self.assertEqual(trade["commission"], 2.0)
         self.assertEqual(trade["realized_profit"], 3.0)
@@ -190,8 +212,8 @@ class TradingSimulatorRunTest(unittest.TestCase):
         result = simulator.run(OpenThenCloseShortStrategy())
         trade = result.trades[0]
 
-        self.assertEqual(trade["entry_price"], 118.0)
-        self.assertEqual(trade["exit_price"], 133.0)
+        self.assertEqual(trade["entry_price"], 108.0)
+        self.assertEqual(trade["exit_price"], 123.0)
         self.assertEqual(trade["realized_pips"], -15.0)
 
     def test_execution_cost_defaults_are_zero_and_reject_negative_values(self):

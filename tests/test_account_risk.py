@@ -98,7 +98,7 @@ class ReinvestAfterCloseStrategy:
 
 class AccountRiskTest(unittest.TestCase):
     def test_positive_profit_is_partly_reinvested_before_same_bar_order(self):
-        data = make_data([100.0, 100.0, 100.0, 121.0])
+        data = make_data([100.0, 100.0, 121.0, 121.0])
         params = make_params(balance=1_000, leverage=100)
         params["asset"]["reinvestment_rate"] = 0.5
         strategy = ReinvestAfterCloseStrategy()
@@ -158,8 +158,8 @@ class AccountRiskTest(unittest.TestCase):
         account = simulator.account_snapshot()
 
         expected_used_margin = (105.0 * 0.1 * 100 / 10) + (104.0 * 0.2 * 100 / 10)
-        long_unrealized = (104.0 - 103.0) * 0.1 * 100
-        short_unrealized = (102.0 - 105.0) * 0.2 * 100
+        long_unrealized = (104.0 - 102.0) * 0.1 * 100
+        short_unrealized = (101.0 - 105.0) * 0.2 * 100
         expected_equity = 10_000 + long_unrealized + short_unrealized
         expected_free_margin = expected_equity - expected_used_margin
 

@@ -265,8 +265,8 @@ class WalkForwardRunnerTest(unittest.TestCase):
             result_constraints=[
                 lambda result: (
                     None
-                    if result.metrics["net_profit"] >= 1
-                    else "net_profit must be at least 1"
+                    if result.metrics["net_profit"] >= 2
+                    else "net_profit must be at least 2"
                 )
             ],
             n_trials=6,
@@ -281,7 +281,7 @@ class WalkForwardRunnerTest(unittest.TestCase):
         ]
         self.assertTrue(rejected)
         self.assertEqual(rejected[0].status, "result_constraint_failed")
-        self.assertIn("net_profit must be at least 1", rejected[0].violations)
+        self.assertIn("net_profit must be at least 2", rejected[0].violations)
         self.assertTrue(result.windows[0].validation_constraint_result.feasible)
 
         with tempfile.TemporaryDirectory() as directory:
@@ -305,7 +305,7 @@ class WalkForwardRunnerTest(unittest.TestCase):
         )
         self.assertEqual(window_row["validation_feasible"], "True")
         self.assertEqual(rejected_row["trial_status"], "result_constraint_failed")
-        self.assertIn("net_profit must be at least 1", rejected_row["trial_violations"])
+        self.assertIn("net_profit must be at least 2", rejected_row["trial_violations"])
 
     def test_accepts_user_defined_optimizer_protocol(self):
         optimizer = FixedCustomOptimizer()

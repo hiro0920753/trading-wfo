@@ -96,9 +96,10 @@ action = Action(
 )
 ```
 
-A single simulation runs the strategy on each confirmed bar. An action decided
-on bar `t` is held as pending and executed with the Bid/Ask values from bar
-`t+1`.
+A single simulation calls the strategy at time `t` with confirmed bars through
+`t-1` and the current Bid/Ask from `t`. Market orders and close requests are
+executed immediately using that same `t` Bid/Ask, adjusted for configured
+slippage. The current, still-forming bar is never included in `bars`.
 
 ```python
 simulator = TradingSimulator(params, log, data)

@@ -10,8 +10,8 @@ StrategyContext = Mapping[str, Any]
 
 @runtime_checkable
 class Strategy(Protocol):
-    """Protocol for stateful strategies evaluated once per confirmed bar."""
+    """Protocol for strategies evaluated at quote t with bars through t-1."""
 
     def on_bar(self, context: StrategyContext) -> Optional[Action]:
-        """Return an action for execution on the following bar."""
+        """Return an action for immediate execution at the current quote."""
         ...

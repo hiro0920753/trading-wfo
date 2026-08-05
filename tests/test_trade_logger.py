@@ -25,8 +25,8 @@ class TradeLoggerTest(unittest.TestCase):
             "position_opened",
             "position_closed",
         ])
-        self.assertEqual(rows[0]["execution_price"], "121.0")
-        self.assertEqual(rows[1]["execution_price"], "130.0")
+        self.assertEqual(rows[0]["execution_price"], "111.0")
+        self.assertEqual(rows[1]["execution_price"], "120.0")
         self.assertEqual(rows[1]["exit_reason"], "close_request")
         self.assertEqual(rows[1]["realized_profit"], "9.0")
 

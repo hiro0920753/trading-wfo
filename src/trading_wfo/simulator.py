@@ -280,19 +280,17 @@ class TradingSimulator:
             }
         )
 
-    def _execute_pending_action(self, time, ask, bid):
-        action = self._execution.take_pending()
-        if action is None:
-            return
+    def _execute_action(self, action, time, ask, bid):
         self._execute_close_requests(action, time, ask, bid)
         self._execute_orders(action, time, ask, bid)
 
     def _build_context(self, step_index):
         data_index = step_index + self._lookback_bars
-        row = self._data.iloc[data_index]
-        time = row["time"].timestamp()
-        bid = float(row["bid"])
-        ask = float(row["ask"])
+        current_row = self._data.iloc[data_index]
+        confirmed_row = self._data.iloc[data_index - 1]
+        time = current_row["time"].timestamp()
+        bid = float(current_row["bid"])
+        ask = float(current_row["ask"])
         self._account.refresh(self._portfolio, bid, ask)
         account = self._account.snapshot()
 
@@ -302,14 +300,14 @@ class TradingSimulator:
             "bid": bid,
             "ask": ask,
             "spread": ask - bid,
-            "open": float(row["open"]),
-            "high": float(row["high"]),
-            "low": float(row["low"]),
-            "close": float(row["close"]),
+            "open": float(confirmed_row["open"]),
+            "high": float(confirmed_row["high"]),
+            "low": float(confirmed_row["low"]),
+            "close": float(confirmed_row["close"]),
             "bars": self._data.iloc[
-                data_index - self._lookback_bars + 1 : data_index + 1
+                data_index - self._lookback_bars : data_index
             ].copy(),
-            "row": row.copy(),
+            "row": confirmed_row.copy(),
             "balance": account["balance"],
             "equity": account["equity"],
             "used_margin": account["used_margin"],
@@ -370,7 +368,7 @@ class TradingSimulator:
         result_path=None,
         live_update_interval=2.0,
     ):
-        """Run one simulation, executing each Action on the following bar."""
+        """Run one simulation using confirmed bars through t-1 at quote t."""
         if live_update_interval <= 0:
             raise ValueError("live_update_interval must be positive")
         if data is not None:
@@ -393,7 +391,6 @@ class TradingSimulator:
             bid = float(row["bid"])
             ask = float(row["ask"])
 
-            self._execute_pending_action(time, ask, bid)
             context = self._build_context(step_index)
 
             if self._account.is_stop_out:
@@ -404,6 +401,11 @@ class TradingSimulator:
                 context["stop_out_triggered"] = True
             else:
                 context["stop_out_triggered"] = False
+
+            if not trading_stopped:
+                action = self._call_strategy(strategy, context)
+                self._execute_action(action, time, ask, bid)
+                trading_stopped = action.stop_trading
 
             equity_curve.append(
                 {
@@ -425,13 +427,6 @@ class TradingSimulator:
                     last_live_update = now
                     live_trade_count = len(self._trade_records)
 
-            if trading_stopped:
-                continue
-            action = self._call_strategy(strategy, context)
-            self._execution.submit(action)
-            trading_stopped = action.stop_trading
-
-        self._execution.clear()
         if close_positions_at_end and self._portfolio.positions() and self._step_count:
             final_row = self._data.iloc[-1]
             self._liquidate_all(

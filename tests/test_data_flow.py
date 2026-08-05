@@ -199,7 +199,9 @@ class TradingSimulatorDataTest(unittest.TestCase):
         info = contexts[0]
 
         self.assertEqual(len(simulator._data), 3)
-        self.assertEqual(info["row"]["signal"], 6)
+        self.assertEqual(info["row"]["signal"], 5)
+        self.assertEqual(info["bars"].iloc[-1]["signal"], 5)
+        self.assertEqual(info["bid"], data.iloc[6]["bid"])
 
     def test_rejects_unsorted_data_instead_of_reordering_it(self):
         data = make_bars(size=4).iloc[::-1]

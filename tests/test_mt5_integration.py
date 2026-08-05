@@ -118,7 +118,7 @@ class Mt5IntegrationTest(unittest.TestCase):
             len(dataset.backtest_data) - 10,
         )
 
-    def test_runs_t_plus_one_execution_on_real_mt5_data(self):
+    def test_uses_previous_confirmed_bar_and_current_mt5_quote(self):
         params = {
             "common": {
                 "units_per_lot": 100_000,
@@ -129,12 +129,20 @@ class Mt5IntegrationTest(unittest.TestCase):
             "asset": {"balance": 10_000, "stop_out_level": 50},
         }
         simulator = TradingSimulator(params, DummyTradingLog(), self.data)
+        strategy = OpenThenCloseStrategy()
 
-        result = simulator.run(OpenThenCloseStrategy())
+        result = simulator.run(strategy)
 
         trade = result.trades[0]
-        self.assertEqual(trade["entry_price"], self.data.iloc[11]["ask"])
-        self.assertEqual(trade["exit_price"], self.data.iloc[12]["bid"])
+        first_context = strategy.contexts[0]
+        self.assertEqual(
+            first_context["bars"].iloc[-1]["time"],
+            pd.Timestamp(self.data.iloc[9]["time"]),
+        )
+        self.assertEqual(first_context["bid"], self.data.iloc[10]["bid"])
+        self.assertEqual(first_context["ask"], self.data.iloc[10]["ask"])
+        self.assertEqual(trade["entry_price"], self.data.iloc[10]["ask"])
+        self.assertEqual(trade["exit_price"], self.data.iloc[11]["bid"])
         self.assertEqual(trade["exit_time"] - trade["time"], 15 * 60)
         self.assertEqual(len(result.equity_curve), len(self.data) - 10)
         json.dumps(result.trades)
@@ -147,9 +155,9 @@ class Mt5IntegrationTest(unittest.TestCase):
 
         result = simulator.run(strategy)
 
-        entry_bid = float(self.data.iloc[11]["bid"])
-        entry_ask = float(self.data.iloc[11]["ask"])
-        exit_bid = float(self.data.iloc[12]["bid"])
+        entry_bid = float(self.data.iloc[10]["bid"])
+        entry_ask = float(self.data.iloc[10]["ask"])
+        exit_bid = float(self.data.iloc[11]["bid"])
         expected_profit = (exit_bid - entry_ask) * 0.01 * 100_000
         expected_pips = (exit_bid - entry_ask) / 0.01
         expected_entry_equity = 10_000 + (entry_bid - entry_ask) * 0.01 * 100_000
@@ -157,10 +165,10 @@ class Mt5IntegrationTest(unittest.TestCase):
         self.assertEqual(result.trades[0]["entry_price"], entry_ask)
         self.assertEqual(result.trades[0]["exit_price"], exit_bid)
         self.assertAlmostEqual(result.trades[0]["realized_profit"], expected_profit)
-        self.assertAlmostEqual(result.equity_curve[1]["balance"], 10_000)
-        self.assertAlmostEqual(result.equity_curve[1]["equity"], expected_entry_equity)
-        self.assertAlmostEqual(result.equity_curve[2]["balance"], 10_000 + expected_profit)
-        self.assertAlmostEqual(result.equity_curve[2]["equity"], 10_000 + expected_profit)
+        self.assertAlmostEqual(result.equity_curve[0]["balance"], 10_000)
+        self.assertAlmostEqual(result.equity_curve[0]["equity"], expected_entry_equity)
+        self.assertAlmostEqual(result.equity_curve[1]["balance"], 10_000 + expected_profit)
+        self.assertAlmostEqual(result.equity_curve[1]["equity"], 10_000 + expected_profit)
         self.assertAlmostEqual(result.metrics["realized_profit"], expected_profit)
         self.assertAlmostEqual(result.metrics["realized_pips"], expected_pips)
         self.assertAlmostEqual(result.metrics["final_balance"], 10_000 + expected_profit)
@@ -173,9 +181,9 @@ class Mt5IntegrationTest(unittest.TestCase):
 
         result = simulator.run(strategy)
 
-        entry_bid = float(self.data.iloc[11]["bid"])
-        entry_ask = float(self.data.iloc[11]["ask"])
-        exit_ask = float(self.data.iloc[12]["ask"])
+        entry_bid = float(self.data.iloc[10]["bid"])
+        entry_ask = float(self.data.iloc[10]["ask"])
+        exit_ask = float(self.data.iloc[11]["ask"])
         expected_profit = (entry_bid - exit_ask) * 0.01 * 100_000
         expected_pips = (entry_bid - exit_ask) / 0.01
         expected_entry_equity = 10_000 + (entry_bid - entry_ask) * 0.01 * 100_000
@@ -183,10 +191,10 @@ class Mt5IntegrationTest(unittest.TestCase):
         self.assertEqual(result.trades[0]["entry_price"], entry_bid)
         self.assertEqual(result.trades[0]["exit_price"], exit_ask)
         self.assertAlmostEqual(result.trades[0]["realized_profit"], expected_profit)
-        self.assertAlmostEqual(result.equity_curve[1]["balance"], 10_000)
-        self.assertAlmostEqual(result.equity_curve[1]["equity"], expected_entry_equity)
-        self.assertAlmostEqual(result.equity_curve[2]["balance"], 10_000 + expected_profit)
-        self.assertAlmostEqual(result.equity_curve[2]["equity"], 10_000 + expected_profit)
+        self.assertAlmostEqual(result.equity_curve[0]["balance"], 10_000)
+        self.assertAlmostEqual(result.equity_curve[0]["equity"], expected_entry_equity)
+        self.assertAlmostEqual(result.equity_curve[1]["balance"], 10_000 + expected_profit)
+        self.assertAlmostEqual(result.equity_curve[1]["equity"], 10_000 + expected_profit)
         self.assertAlmostEqual(result.metrics["realized_profit"], expected_profit)
         self.assertAlmostEqual(result.metrics["realized_pips"], expected_pips)
         self.assertAlmostEqual(result.metrics["final_balance"], 10_000 + expected_profit)

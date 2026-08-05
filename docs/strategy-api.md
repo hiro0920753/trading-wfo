@@ -18,17 +18,20 @@ class MyStrategy:
         )
 ```
 
-The strategy receives only confirmed data. Important context fields include:
+The strategy receives confirmed bars and the current executable quote.
+Important context fields include:
 
-- `time`, `bid`, `ask`, `spread`, `open`, `high`, `low`, and `close`;
-- `bars`, containing at most the configured `lookback_bars` confirmed rows;
+- `time`, the current quote time `t`, plus its `bid`, `ask`, and `spread`;
+- `open`, `high`, `low`, and `close` from the latest confirmed bar `t-1`;
+- `bars`, ending at `t-1` and containing the configured `lookback_bars` rows;
 - `balance`, `equity`, `used_margin`, `free_margin`, and `margin_level`;
 - `realized_profit`, `unrealized_profit`, `realized_pips`, and
   `unrealized_pips`;
 - `long_positions`, `short_positions`, and `active_position_count`.
 
-Orders and close requests returned at bar `t` become pending. The simulator
-executes them using bar `t+1` prices before calling the strategy again.
+Orders and close requests returned at time `t` execute immediately using the
+same `context["bid"]` and `context["ask"]`, adjusted for configured slippage.
+Close requests execute before new orders in the same `Action`.
 Strategy-specific values belong in `Order.metadata`; the simulator preserves
 them without interpreting them.
 
