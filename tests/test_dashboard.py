@@ -196,6 +196,45 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("save-all-trades", index.text)
         self.assertNotIn("chart-hover-values", index.text)
 
+    def test_accepts_simulation_result_for_backtest_dashboard(self):
+        simulation = {
+            "metrics": {
+                "initial_balance": 10000,
+                "net_profit": 250,
+                "return_pct": 2.5,
+                "max_drawdown_pct": 1.2,
+                "profit_factor": 1.4,
+                "win_rate": 55,
+                "total_trades": 1,
+            },
+            "trades": [{
+                "position_id": 1, "time": 1, "exit_time": 2,
+                "side": "long", "entry_price": 150, "exit_price": 150.25,
+                "realized_profit": 250, "realized_pips": 25,
+            }],
+            "equity_curve": [
+                {"time": 1, "balance": 10000, "equity": 10000},
+                {"time": 2, "balance": 10250, "equity": 10250},
+            ],
+            "rejected_orders": [],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "backtest.json"
+            path.write_text(json.dumps(simulation), encoding="utf-8")
+            app = create_dashboard_app(path)
+            result = self.get(app, "/api/result")
+            script = self.get(app, "/app.js")
+            index = self.get(app, "/")
+
+        payload = result.json()
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(payload["result_type"], "backtest")
+        self.assertEqual(payload["aggregate_metrics"]["net_profit"], 250)
+        self.assertEqual(payload["windows"][0]["validation_result"]["trades"], simulation["trades"])
+        self.assertIn("applyResultMode", script.text)
+        self.assertIn("Backtest overview", script.text)
+        self.assertIn("data-wfo-only", index.text)
+
     def test_market_directory_and_log_series_are_available_to_chart(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

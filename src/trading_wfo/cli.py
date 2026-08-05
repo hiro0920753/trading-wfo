@@ -12,7 +12,7 @@ def build_parser():
         "--result",
         type=Path,
         default=Path("results/wfo_result.json"),
-        help="path to WalkForwardResult JSON",
+        help="path to WalkForwardResult or SimulationResult JSON",
     )
     dashboard.add_argument("--host", default="127.0.0.1")
     dashboard.add_argument("--port", type=int, default=8000)

@@ -30,14 +30,36 @@ def _load_result(path):
 
     if not isinstance(payload, dict):
         raise HTTPException(status_code=422, detail="result JSON must be an object")
-    if "aggregate_metrics" not in payload or "windows" not in payload:
-        raise HTTPException(
-            status_code=422,
-            detail="result JSON must contain aggregate_metrics and windows",
-        )
-    if not isinstance(payload["windows"], list):
-        raise HTTPException(status_code=422, detail="windows must be a list")
-    return payload
+    if "aggregate_metrics" in payload and "windows" in payload:
+        if not isinstance(payload["windows"], list):
+            raise HTTPException(status_code=422, detail="windows must be a list")
+        payload.setdefault("result_type", "walk_forward")
+        return payload
+    if {"metrics", "trades", "equity_curve"}.issubset(payload):
+        if not isinstance(payload["metrics"], dict):
+            raise HTTPException(status_code=422, detail="metrics must be an object")
+        if not isinstance(payload["trades"], list) or not isinstance(payload["equity_curve"], list):
+            raise HTTPException(status_code=422, detail="trades and equity_curve must be lists")
+        times = [point.get("time") for point in payload["equity_curve"] if point.get("time") is not None]
+        return {
+            "result_type": "backtest",
+            "aggregate_metrics": payload["metrics"],
+            "windows": [{
+                "index": 0,
+                "optimization_result": {"best_params": {}, "best_score": None, "trials": []},
+                "validation_result": payload,
+                "training_start": None, "training_end": None,
+                "optimization_start": None, "optimization_end": None,
+                "validation_start": times[0] if times else None,
+                "validation_end": times[-1] if times else None,
+                "validation_constraint_result": {"feasible": True, "violations": []},
+                "parameter_stability_result": None,
+            }],
+        }
+    raise HTTPException(
+        status_code=422,
+        detail="result JSON must be a WalkForwardResult or SimulationResult",
+    )
 
 
 def _csv_files(directory):
@@ -144,7 +166,7 @@ def _resolve_directory(value, label):
 
 
 def create_dashboard_app(result_path, *, market_data_directory=None, log_directory=None, progress_path=None):
-    """Create a read-only localhost dashboard for one WFO result JSON file."""
+    """Create a localhost dashboard for a WFO or simulation result JSON."""
     result_path = Path(result_path).expanduser().resolve()
     progress_path = (
         result_path.with_suffix(".progress.json")

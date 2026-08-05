@@ -12,10 +12,10 @@
     <a class="brand" href="#overview"><span class="brand-mark">W</span><span><b>trading-wfo</b><small>LOCAL RESEARCH</small></span></a>
     <nav class="nav" aria-label="Dashboard sections">
       <a href="#overview" data-page="overview">Overview</a>
-      <a href="#windows" data-page="windows">Windows</a>
-      <a href="#robustness" data-page="robustness">Robustness</a>
+      <a href="#windows" data-page="windows" data-wfo-only>Windows</a>
+      <a href="#robustness" data-page="robustness" data-wfo-only>Robustness</a>
       <a href="#trades" data-page="trades">Trades</a>
-      <a href="#progress" data-page="progress">Progress</a>
+      <a href="#progress" data-page="progress" data-wfo-only>Progress</a>
     </nav>
     <button id="save-all-charts" class="theme-toggle export-all" type="button" aria-label="Save all charts as PNG"><span>⇩</span><b>Save all PNG</b></button>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch color theme"><span id="theme-icon">☾</span><b id="theme-label">Dark</b></button>
@@ -25,7 +25,7 @@
   <main>
     <section id="error" class="error hidden"></section>
 
-    <section class="page hidden" data-page-content="progress">
+    <section class="page hidden" data-page-content="progress" data-wfo-only>
       <div class="page-heading"><p class="eyebrow">LIVE EXECUTION</p><h1>Walk-forward progress</h1><p>Windows run sequentially; optimization trials may run in parallel inside the active window.</p></div>
       <section id="progress-metrics" class="metric-grid"></section>
       <section class="panel progress-panel">
@@ -39,7 +39,7 @@
     </section>
 
     <section class="page" data-page-content="overview">
-      <div class="page-heading"><p class="eyebrow">WALK-FORWARD VALIDATION</p><h1>Strategy overview</h1><p>Out-of-sample performance across every validation window.</p></div>
+      <div class="page-heading"><p id="overview-eyebrow" class="eyebrow">WALK-FORWARD VALIDATION</p><h1 id="overview-title">Strategy overview</h1><p id="overview-description">Out-of-sample performance across every validation window.</p></div>
       <section id="metrics" class="metric-grid"></section>
       <section class="panel chart-panel">
         <div class="panel-heading"><div><p class="eyebrow">VALIDATION EQUITY</p><h2>Capital across windows</h2></div><div class="legend"><span class="legend-line"></span>Equity</div></div>
@@ -49,13 +49,13 @@
         <div class="panel-heading"><div><p class="eyebrow">VALIDATION PIPS</p><h2>Cumulative realized pips</h2></div><div class="legend"><span class="legend-line pips-line"></span>Realized pips</div></div>
         <canvas id="pips-chart" height="240"></canvas>
       </section>
-      <section class="panel">
+      <section class="panel" data-wfo-only>
         <div class="panel-heading"><div><p class="eyebrow">WINDOW P&amp;L</p><h2>Optimization vs validation</h2></div><div class="legend legend-pair"><span><i class="legend-box optimization"></i>Optimization</span><span><i class="legend-box validation"></i>Validation</span></div></div>
         <canvas id="window-chart" height="280"></canvas>
       </section>
     </section>
 
-    <section class="page hidden" data-page-content="windows">
+    <section class="page hidden" data-page-content="windows" data-wfo-only>
       <div class="page-heading"><p class="eyebrow">WINDOW REVIEW</p><h1>Optimization and validation</h1><p>Select a window to inspect its periods, parameters, trials, and out-of-sample result.</p></div>
       <section class="panel table-panel">
         <div class="panel-heading"><div><p class="eyebrow">CHRONOLOGY</p><h2>Validation windows</h2></div></div>
@@ -67,7 +67,7 @@
       </div>
     </section>
 
-    <section class="page hidden" data-page-content="robustness">
+    <section class="page hidden" data-page-content="robustness" data-wfo-only>
       <div class="page-heading"><p class="eyebrow">PARAMETER STABILITY</p><h1>Robustness around the optimum</h1><p>Inspect how nearby parameter combinations perform on each validation window.</p></div>
       <div class="toolbar"><label>Window<select id="robustness-window"></select></label></div>
       <section class="panel table-panel">
@@ -78,7 +78,7 @@
     </section>
 
     <section class="page hidden" data-page-content="trades">
-      <div class="page-heading"><p class="eyebrow">TRADE ANALYSIS</p><h1>Validation trade diagnostics</h1><p>Analyze out-of-sample trades across windows and inspect the context stored in metadata.</p></div>
+      <div class="page-heading"><p class="eyebrow">TRADE ANALYSIS</p><h1 id="trade-page-title">Validation trade diagnostics</h1><p id="trade-page-description">Analyze out-of-sample trades across windows and inspect the context stored in metadata.</p></div>
       <section id="trade-metrics" class="metric-grid trade-metric-grid"></section>
       <div class="two-column">
         <section class="panel"><div class="panel-heading"><div><p class="eyebrow">PIPS DISTRIBUTION</p><h2>Outcome shape</h2></div></div><canvas id="trade-distribution-chart" height="270"></canvas></section>

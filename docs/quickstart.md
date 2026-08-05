@@ -9,7 +9,12 @@ dataset = TradingDataset.from_dataframe(data)
 simulator = TradingSimulator(PARAMS, None, dataset.backtest_data)
 result = simulator.run(MyStrategy())
 print(result.metrics)
+result.save_json("results/backtest.json")
 ```
+
+View it with `trading-wfo dashboard --result results/backtest.json`. The
+dashboard automatically detects `SimulationResult` and switches to backtest
+mode.
 
 See [`examples/minimal_backtest.py`](../examples/minimal_backtest.py) for a
 self-contained executable example.

@@ -103,7 +103,17 @@ on bar `t` is held as pending and executed with the Bid/Ask values from bar
 ```python
 simulator = TradingSimulator(params, log, data)
 result = simulator.run(strategy)
+result.save_json("results/backtest.json")
 ```
+
+Open the same dashboard for a single backtest result:
+
+```bash
+trading-wfo dashboard --result results/backtest.json
+```
+
+Backtest mode shows Overview, Equity, Pips, Trades, and Trade Inspector while
+hiding the WFO-only Windows, Robustness, and Progress sections.
 
 By default, positions still open at the end of the supplied data are closed at
 the final Bid (long) or Ask (short). The resulting trade has
