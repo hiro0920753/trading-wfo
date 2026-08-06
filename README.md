@@ -329,16 +329,18 @@ capital. The remainder is recorded as `reserved_profit`; losses always reduce
 trading capital in full. Close requests are processed before new orders, so
 reinvested profit is available to orders executed on the same bar.
 
-Spread is already represented by the supplied Bid and Ask columns. Optional
-commission and adverse market-order slippage are configured separately; both
-default to zero for commission-free Japanese FX accounts.
+Spread is represented by the supplied Bid and Ask columns. Optional spread
+stress, commission, and adverse market-order slippage are configured
+separately; all default to zero for commission-free Japanese FX accounts.
 
 ```python
 from trading_wfo import ExecutionConfig
 
 execution_config = ExecutionConfig(
     commission_per_lot_per_side=0,  # account-currency units per lot per fill
-    slippage_pips=0,
+    additional_spread_pips=0,
+    entry_slippage_pips=0,
+    exit_slippage_pips=0,
 )
 simulator = TradingSimulator(
     params,
@@ -348,8 +350,10 @@ simulator = TradingSimulator(
 )
 ```
 
-Slippage increases long entry/short exit prices and decreases short entry/long
-exit prices. Commission is charged on both entry and exit. Closed trade records
+Additional spread increases Ask while leaving Bid unchanged, and the effective
+quote is also passed to the strategy. Slippage increases long entry/short exit
+prices and decreases short entry/long exit prices. Commission is charged on
+both entry and exit. Closed trade records
 contain `gross_profit`, `commission`, and net `realized_profit`; simulation
 metrics contain `total_commission`.
 

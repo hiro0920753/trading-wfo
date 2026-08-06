@@ -221,8 +221,15 @@ class TradingSimulator:
                 "gross_profit": float(gross_profit),
                 "commission": float(total_commission),
                 "exit_commission": float(exit_commission),
-                "entry_slippage_pips": self._execution_config.slippage_pips,
-                "exit_slippage_pips": self._execution_config.slippage_pips,
+                "additional_spread_pips": (
+                    self._execution_config.additional_spread_pips
+                ),
+                "entry_slippage_pips": (
+                    self._execution_config.entry_slippage_pips
+                ),
+                "exit_slippage_pips": (
+                    self._execution_config.exit_slippage_pips
+                ),
                 "exit_reason": exit_reason,
             }
         )
@@ -284,13 +291,11 @@ class TradingSimulator:
         self._execute_close_requests(action, time, ask, bid)
         self._execute_orders(action, time, ask, bid)
 
-    def _build_context(self, step_index):
+    def _build_context(self, step_index, ask, bid):
         data_index = step_index + self._lookback_bars
         current_row = self._data.iloc[data_index]
         confirmed_row = self._data.iloc[data_index - 1]
         time = current_row["time"].timestamp()
-        bid = float(current_row["bid"])
-        ask = float(current_row["ask"])
         self._account.refresh(self._portfolio, bid, ask)
         account = self._account.snapshot()
 
@@ -388,16 +393,17 @@ class TradingSimulator:
             data_index = step_index + self._lookback_bars
             row = self._data.iloc[data_index]
             time = row["time"].timestamp()
-            bid = float(row["bid"])
-            ask = float(row["ask"])
+            ask, bid = self._execution.effective_quote(
+                ask=row["ask"], bid=row["bid"]
+            )
 
-            context = self._build_context(step_index)
+            context = self._build_context(step_index, ask, bid)
 
             if self._account.is_stop_out:
                 self._liquidate_all(
                     time, ask, bid, exit_reason="stop_out"
                 )
-                context = self._build_context(step_index)
+                context = self._build_context(step_index, ask, bid)
                 context["stop_out_triggered"] = True
             else:
                 context["stop_out_triggered"] = False
@@ -429,10 +435,13 @@ class TradingSimulator:
 
         if close_positions_at_end and self._portfolio.positions() and self._step_count:
             final_row = self._data.iloc[-1]
+            final_ask, final_bid = self._execution.effective_quote(
+                ask=final_row["ask"], bid=final_row["bid"]
+            )
             self._liquidate_all(
                 time=final_row["time"].timestamp(),
-                ask=float(final_row["ask"]),
-                bid=float(final_row["bid"]),
+                ask=final_ask,
+                bid=final_bid,
                 exit_reason="end_of_data",
             )
             equity_curve[-1].update(
@@ -469,8 +478,14 @@ class TradingSimulator:
                 "reserved_profit": float(self._account.reserved_profit),
                 "reinvested_profit": float(self._account.reinvested_profit),
                 "total_commission": float(self._total_commission),
-                "slippage_pips_per_execution": float(
-                    self._execution_config.slippage_pips
+                "additional_spread_pips": float(
+                    self._execution_config.additional_spread_pips
+                ),
+                "entry_slippage_pips": float(
+                    self._execution_config.entry_slippage_pips
+                ),
+                "exit_slippage_pips": float(
+                    self._execution_config.exit_slippage_pips
                 ),
                 "steps_processed": steps_processed,
                 "total_steps": self._step_count,

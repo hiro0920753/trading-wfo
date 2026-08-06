@@ -185,7 +185,8 @@ class TradingSimulatorRunTest(unittest.TestCase):
             make_data(),
             execution_config=ExecutionConfig(
                 commission_per_lot_per_side=100,
-                slippage_pips=2,
+                entry_slippage_pips=2,
+                exit_slippage_pips=2,
             ),
         )
 
@@ -206,7 +207,10 @@ class TradingSimulatorRunTest(unittest.TestCase):
             make_params(),
             None,
             make_data(),
-            execution_config=ExecutionConfig(slippage_pips=2),
+            execution_config=ExecutionConfig(
+                entry_slippage_pips=2,
+                exit_slippage_pips=2,
+            ),
         )
 
         result = simulator.run(OpenThenCloseShortStrategy())
@@ -219,11 +223,48 @@ class TradingSimulatorRunTest(unittest.TestCase):
     def test_execution_cost_defaults_are_zero_and_reject_negative_values(self):
         config = ExecutionConfig()
         self.assertEqual(config.commission_per_lot_per_side, 0.0)
-        self.assertEqual(config.slippage_pips, 0.0)
+        self.assertEqual(config.additional_spread_pips, 0.0)
+        self.assertEqual(config.entry_slippage_pips, 0.0)
+        self.assertEqual(config.exit_slippage_pips, 0.0)
         with self.assertRaisesRegex(ValueError, "commission"):
             ExecutionConfig(commission_per_lot_per_side=-1)
-        with self.assertRaisesRegex(ValueError, "slippage"):
-            ExecutionConfig(slippage_pips=-1)
+        with self.assertRaisesRegex(ValueError, "additional_spread"):
+            ExecutionConfig(additional_spread_pips=-1)
+        with self.assertRaisesRegex(ValueError, "entry_slippage"):
+            ExecutionConfig(entry_slippage_pips=-1)
+        with self.assertRaisesRegex(ValueError, "exit_slippage"):
+            ExecutionConfig(exit_slippage_pips=-1)
+
+    def test_additional_spread_is_visible_to_strategy_and_execution(self):
+        contexts = []
+        strategy = OpenThenCloseStrategy()
+
+        def observe(context):
+            contexts.append(context)
+            return strategy.on_bar(context)
+
+        result = TradingSimulator(
+            make_params(),
+            None,
+            make_data(),
+            execution_config=ExecutionConfig(
+                additional_spread_pips=3,
+                entry_slippage_pips=2,
+                exit_slippage_pips=1,
+            ),
+        ).run(observe)
+
+        trade = result.trades[0]
+        self.assertEqual(contexts[0]["bid"], 110)
+        self.assertEqual(contexts[0]["ask"], 114)
+        self.assertEqual(contexts[0]["spread"], 4)
+        self.assertEqual(trade["entry_price"], 116)
+        self.assertEqual(trade["exit_price"], 119)
+        self.assertEqual(trade["realized_pips"], 3)
+        self.assertEqual(trade["additional_spread_pips"], 3)
+        self.assertEqual(result.metrics["additional_spread_pips"], 3)
+        self.assertEqual(result.metrics["entry_slippage_pips"], 2)
+        self.assertEqual(result.metrics["exit_slippage_pips"], 1)
 
 
 if __name__ == "__main__":

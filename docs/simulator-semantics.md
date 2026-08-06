@@ -30,8 +30,18 @@ the same timestamp.
 - Long entry: Ask; long exit: Bid.
 - Short entry: Bid; short exit: Ask.
 - Spread is represented by the supplied Bid and Ask columns.
-- Slippage moves executions against the trader.
+- `additional_spread_pips` widens the supplied quote by increasing Ask while
+  leaving Bid unchanged. Strategies see this effective Bid/Ask and spread.
+- Entry and exit slippage are configured separately and always move execution
+  prices against the trader.
 - Commission is charged per lot on each entry and exit side.
+
+With effective quotes after spread stress, executions are calculated as:
+
+- long entry: effective Ask + entry slippage;
+- long exit: effective Bid - exit slippage;
+- short entry: effective Bid - entry slippage;
+- short exit: effective Ask + exit slippage.
 
 Open positions are closed at the final Bid/Ask by default with
 `exit_reason="end_of_data"`. Set `close_positions_at_end=False` only when an

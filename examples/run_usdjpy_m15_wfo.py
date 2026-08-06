@@ -45,7 +45,9 @@ def run(
     )
     execution_config = ExecutionConfig(
         commission_per_lot_per_side=0,
-        slippage_pips=0,
+        additional_spread_pips=0,
+        entry_slippage_pips=0,
+        exit_slippage_pips=0,
     )
     validation_log_path = output_directory / "validation_trades.csv"
     validation_log_path.unlink(missing_ok=True)
