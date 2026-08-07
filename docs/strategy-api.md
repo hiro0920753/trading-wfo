@@ -35,5 +35,23 @@ Close requests execute before new orders in the same `Action`.
 Strategy-specific values belong in `Order.metadata`; the simulator preserves
 them without interpreting them.
 
+The current quote already includes configured spread stress. Execution then
+applies adverse entry or exit slippage:
+
+```python
+from trading_wfo import ExecutionConfig
+
+execution = ExecutionConfig(
+    additional_spread_pips=0.5,
+    entry_slippage_pips=0.2,
+    exit_slippage_pips=0.3,
+)
+```
+
+With no slippage, a close request uses the same Bid/Ask used by the strategy
+to calculate its decision-time profit. CSV Bid/Ask values remain unchanged in
+the user's input DataFrame; only the simulation context and execution quote
+are adjusted.
+
 An exception raised by strategy code is wrapped in `StrategyExecutionError`
 with the step index and timestamp where it occurred.
