@@ -1,5 +1,8 @@
 import copy
+from pathlib import Path
 from time import monotonic
+
+from tqdm.auto import tqdm
 
 from ._account import Account
 from ._data import prepare_market_data
@@ -372,10 +375,14 @@ class TradingSimulator:
         close_positions_at_end=True,
         result_path=None,
         live_update_interval=2.0,
+        live_result_interval=60.0,
+        show_progress=False,
     ):
         """Run one simulation using confirmed bars through t-1 at quote t."""
         if live_update_interval <= 0:
             raise ValueError("live_update_interval must be positive")
+        if live_result_interval <= 0:
+            raise ValueError("live_result_interval must be positive")
         if data is not None:
             self.set_data(data)
         self._reset_simulation_state()
@@ -383,13 +390,27 @@ class TradingSimulator:
         equity_curve = []
         trading_stopped = False
         last_live_update = monotonic()
+        last_result_update = last_live_update
         live_trade_count = 0
+        progress_path = None
         if result_path is not None:
+            result_path = Path(result_path)
+            progress_path = result_path.with_suffix(".progress.json")
             self._make_result(equity_curve, 0, status="running").save_json(
                 result_path
             )
+            self._make_progress_result(0, status="running").save_json(
+                progress_path, indent=None
+            )
 
-        for step_index in range(self._step_count):
+        steps = tqdm(
+            range(self._step_count),
+            desc="Backtest",
+            unit="bar",
+            dynamic_ncols=True,
+            disable=not show_progress,
+        )
+        for step_index in steps:
             data_index = step_index + self._lookback_bars
             row = self._data.iloc[data_index]
             time = row["time"].timestamp()
@@ -427,11 +448,16 @@ class TradingSimulator:
                 now = monotonic()
                 trade_completed = len(self._trade_records) != live_trade_count
                 if trade_completed or now - last_live_update >= live_update_interval:
+                    self._make_progress_result(
+                        step_index + 1, status="running"
+                    ).save_json(progress_path, indent=None)
+                    last_live_update = now
+                    live_trade_count = len(self._trade_records)
+                if now - last_result_update >= live_result_interval:
                     self._make_result(
                         equity_curve, step_index + 1, status="running"
                     ).save_json(result_path)
-                    last_live_update = now
-                    live_trade_count = len(self._trade_records)
+                    last_result_update = now
 
         if close_positions_at_end and self._portfolio.positions() and self._step_count:
             final_row = self._data.iloc[-1]
@@ -458,9 +484,30 @@ class TradingSimulator:
         )
         if result_path is not None:
             result.save_json(result_path)
+            self._make_progress_result(
+                self._step_count, status="completed"
+            ).save_json(progress_path, indent=None)
         if self._trading_log is not None and hasattr(self._trading_log, "save"):
             self._trading_log.save()
         return result
+
+    def _make_progress_result(self, steps_processed, *, status):
+        """Create a bounded live snapshot without copying the full result."""
+        metrics = {
+            "steps_processed": steps_processed,
+            "total_steps": self._step_count,
+            "progress_pct": (
+                100.0 * steps_processed / self._step_count
+                if self._step_count else 100.0
+            ),
+            "status": status,
+            "total_trades": len(self._trade_records),
+            "realized_profit": float(self._account.realized_profit),
+            "realized_pips": float(self._account.realized_pips),
+            "balance": float(self._account.balance),
+            "equity": float(self._account.equity),
+        }
+        return SimulationResult(metrics=metrics)
 
     def _make_result(self, equity_curve, steps_processed, *, status):
         metrics = calculate_metrics(

@@ -39,6 +39,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "plotly>=6.0",
+    "tqdm>=4.66",
 ]
 
 [project.scripts]

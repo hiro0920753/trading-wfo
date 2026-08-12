@@ -80,10 +80,18 @@ class TradingSimulatorRunTest(unittest.TestCase):
 
             class ObservingStrategy(OpenThenCloseStrategy):
                 saw_running_result = False
+                saw_progress_result = False
 
                 def on_bar(self, context):
                     payload = json.loads(path.read_text(encoding="utf-8"))
                     self.saw_running_result = payload["metrics"]["status"] == "running"
+                    progress = json.loads(
+                        path.with_suffix(".progress.json").read_text(encoding="utf-8")
+                    )
+                    self.saw_progress_result = (
+                        progress["metrics"]["status"] == "running"
+                        and progress["equity_curve"] == []
+                    )
                     return super().on_bar(context)
 
             strategy = ObservingStrategy()
@@ -97,9 +105,38 @@ class TradingSimulatorRunTest(unittest.TestCase):
             saved = json.loads(path.read_text(encoding="utf-8"))
 
         self.assertTrue(strategy.saw_running_result)
+        self.assertTrue(strategy.saw_progress_result)
         self.assertEqual(saved["metrics"]["status"], "completed")
         self.assertEqual(saved["metrics"]["progress_pct"], 100)
         self.assertEqual(saved["trades"], result.trades)
+
+    def test_live_progress_is_lightweight_and_final_result_is_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "backtest.json"
+            result = TradingSimulator(
+                make_params(), DummyTradingLog(), make_data()
+            ).run(
+                OpenThenCloseStrategy(),
+                result_path=path,
+                live_update_interval=999,
+                live_result_interval=999,
+            )
+            progress = json.loads(
+                path.with_suffix(".progress.json").read_text(encoding="utf-8")
+            )
+            saved = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(progress["metrics"]["status"], "completed")
+        self.assertEqual(progress["metrics"]["progress_pct"], 100)
+        self.assertEqual(progress["trades"], [])
+        self.assertEqual(progress["equity_curve"], [])
+        self.assertEqual(saved["trades"], result.trades)
+        self.assertEqual(saved["equity_curve"], result.equity_curve)
+
+    def test_rejects_non_positive_result_snapshot_interval(self):
+        simulator = TradingSimulator(make_params(), None, make_data())
+        with self.assertRaisesRegex(ValueError, "live_result_interval"):
+            simulator.run(lambda context: Action(), live_result_interval=0)
 
     def test_closes_remaining_position_at_final_bid(self):
         class OpenOnceStrategy:
