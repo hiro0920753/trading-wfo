@@ -58,7 +58,11 @@ class OpenThenCloseStrategy:
         if self.calls == 2:
             return Action(
                 close_requests=[
-                    CloseRequest(position_id=1, reason="take_profit_trend_reversal")
+                    CloseRequest(
+                        position_id=1,
+                        reason="take_profit_trend_reversal",
+                        metadata={"diagnostic_exit_rsi": 48.0},
+                    )
                 ]
             )
         return Action()
@@ -86,6 +90,14 @@ class TradingSimulatorRunTest(unittest.TestCase):
         self.assertEqual(
             result.trades[0]["exit_reason"], "take_profit_trend_reversal"
         )
+        self.assertEqual(
+            result.trades[0]["exit_metadata"],
+            {"diagnostic_exit_rsi": 48.0},
+        )
+        self.assertEqual(result.trades[0]["mfe_pips"], 9.0)
+        self.assertEqual(result.trades[0]["mae_pips"], 0.0)
+        self.assertEqual(result.trades[0]["holding_seconds"], 300.0)
+        self.assertEqual(result.trades[0]["profit_peak_drawdown_pips"], 0.0)
 
     def test_live_backtest_result_is_available_during_run(self):
         with tempfile.TemporaryDirectory() as directory:

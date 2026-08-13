@@ -14,13 +14,20 @@ class TradingModelsTest(unittest.TestCase):
                     metadata={"strategy_type": "pullback", "rsi": -0.08},
                 )
             ],
-            close_requests=[CloseRequest(position_id=3, reason="trend_reversal")],
+            close_requests=[
+                CloseRequest(
+                    position_id=3,
+                    reason="trend_reversal",
+                    metadata={"rsi": 51},
+                )
+            ],
         )
 
         self.assertIs(action.orders[0].side, Side.LONG)
         self.assertEqual(action.orders[0].metadata["rsi"], -0.08)
         self.assertEqual(action.close_requests[0].position_id, 3)
         self.assertEqual(action.close_requests[0].reason, "trend_reversal")
+        self.assertEqual(action.close_requests[0].metadata, {"rsi": 51})
 
     def test_close_request_defaults_to_legacy_reason(self):
         self.assertEqual(CloseRequest(position_id=3).reason, "close_request")
@@ -41,7 +48,8 @@ class TradingModelsTest(unittest.TestCase):
 
         self.assertEqual(position.metadata["strategy_type"], "pullback")
         self.assertEqual(snapshot["side"], "long")
-        self.assertNotIn("peak_profit_pips", snapshot)
+        self.assertEqual(snapshot["mfe_pips"], 0.0)
+        self.assertEqual(snapshot["mae_pips"], 0.0)
         self.assertNotIn("is_peak_updated", snapshot)
 
     def test_side_accepts_only_long_and_short(self):

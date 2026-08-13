@@ -80,6 +80,7 @@ class Order:
 class CloseRequest:
     position_id: int
     reason: str = "close_request"
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         object.__setattr__(self, "position_id", int(self.position_id))
@@ -87,6 +88,7 @@ class CloseRequest:
         if not reason:
             raise ValueError("close request reason must not be empty")
         object.__setattr__(self, "reason", reason)
+        object.__setattr__(self, "metadata", normalize_metadata(self.metadata))
 
 
 @dataclass(frozen=True)
@@ -111,6 +113,10 @@ class Position:
     metadata: Dict[str, Any] = field(default_factory=dict)
     environment: str = "sim"
     entry_commission: float = 0.0
+    mfe_pips: float = 0.0
+    mae_pips: float = 0.0
+    mfe_time: Any = None
+    mae_time: Any = None
 
     def __post_init__(self):
         self.side = Side.from_value(self.side)
@@ -131,5 +137,9 @@ def make_position_snapshot(position: Position) -> Dict[str, Any]:
         "environment": position.environment,
         "metadata": normalize_metadata(position.metadata),
         "entry_commission": position.entry_commission,
+        "mfe_pips": position.mfe_pips,
+        "mae_pips": position.mae_pips,
+        "mfe_time": position.mfe_time,
+        "mae_time": position.mae_time,
     }
     return to_serializable(snapshot)

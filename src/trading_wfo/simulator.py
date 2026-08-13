@@ -153,6 +153,9 @@ class TradingSimulator:
         reasons_by_position_id = {
             request.position_id: request.reason for request in action.close_requests
         }
+        metadata_by_position_id = {
+            request.position_id: request.metadata for request in action.close_requests
+        }
         active_ids = {
             position.position_id for position in self._portfolio.positions()
         }
@@ -178,9 +181,25 @@ class TradingSimulator:
                 realized_pips=realized_pips,
                 exit_commission=exit_commission,
                 exit_reason=reasons_by_position_id[position.position_id],
+                exit_metadata=metadata_by_position_id[position.position_id],
             )
         self._account.refresh(self._portfolio, bid, ask)
         return closed_positions
+
+    def _update_position_excursions(self, time, ask, bid):
+        """Record path-dependent diagnostics without affecting decisions."""
+        pip = self._account_config.price_per_pip
+        for position in self._portfolio.positions():
+            if position.side.value == "long":
+                unrealized_pips = (bid - position.entry_price) / pip
+            else:
+                unrealized_pips = (position.entry_price - ask) / pip
+            if unrealized_pips > position.mfe_pips:
+                position.mfe_pips = float(unrealized_pips)
+                position.mfe_time = float(time)
+            if unrealized_pips < position.mae_pips:
+                position.mae_pips = float(unrealized_pips)
+                position.mae_time = float(time)
 
     def _liquidate_all(self, time, ask, bid, *, exit_reason):
         closed_positions = self._portfolio.close_all()
@@ -200,6 +219,7 @@ class TradingSimulator:
                 realized_pips=realized_pips,
                 exit_commission=exit_commission,
                 exit_reason=exit_reason,
+                exit_metadata={},
             )
         self._account.refresh(self._portfolio, bid, ask)
         return closed_positions
@@ -214,6 +234,7 @@ class TradingSimulator:
         realized_pips,
         exit_commission,
         exit_reason,
+        exit_metadata,
     ):
         trade = make_position_snapshot(position)
         total_commission = position.entry_commission + exit_commission
@@ -237,6 +258,10 @@ class TradingSimulator:
                     self._execution_config.exit_slippage_pips
                 ),
                 "exit_reason": exit_reason,
+                "exit_metadata": copy.deepcopy(exit_metadata),
+                "holding_seconds": float(exit_time) - float(position.time),
+                "profit_peak_drawdown_pips": float(position.mfe_pips)
+                - float(realized_pips),
             }
         )
         self._trade_records.append(trade)
@@ -420,6 +445,8 @@ class TradingSimulator:
             ask, bid = self._execution.effective_quote(
                 ask=row["ask"], bid=row["bid"]
             )
+
+            self._update_position_excursions(time, ask, bid)
 
             context = self._build_context(step_index, ask, bid)
 
