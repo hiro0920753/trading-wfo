@@ -14,12 +14,16 @@ class TradingModelsTest(unittest.TestCase):
                     metadata={"strategy_type": "pullback", "rsi": -0.08},
                 )
             ],
-            close_requests=[CloseRequest(position_id=3)],
+            close_requests=[CloseRequest(position_id=3, reason="trend_reversal")],
         )
 
         self.assertIs(action.orders[0].side, Side.LONG)
         self.assertEqual(action.orders[0].metadata["rsi"], -0.08)
         self.assertEqual(action.close_requests[0].position_id, 3)
+        self.assertEqual(action.close_requests[0].reason, "trend_reversal")
+
+    def test_close_request_defaults_to_legacy_reason(self):
+        self.assertEqual(CloseRequest(position_id=3).reason, "close_request")
 
     def test_position_snapshot_is_independent(self):
         position = Position(

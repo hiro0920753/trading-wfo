@@ -79,9 +79,14 @@ class Order:
 @dataclass(frozen=True)
 class CloseRequest:
     position_id: int
+    reason: str = "close_request"
 
     def __post_init__(self):
         object.__setattr__(self, "position_id", int(self.position_id))
+        reason = str(self.reason).strip()
+        if not reason:
+            raise ValueError("close request reason must not be empty")
+        object.__setattr__(self, "reason", reason)
 
 
 @dataclass(frozen=True)

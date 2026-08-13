@@ -56,7 +56,11 @@ class OpenThenCloseStrategy:
         if self.calls == 1:
             return Action(orders=[Order(side=Side.LONG, lot_size=0.01)])
         if self.calls == 2:
-            return Action(close_requests=[CloseRequest(position_id=1)])
+            return Action(
+                close_requests=[
+                    CloseRequest(position_id=1, reason="take_profit_trend_reversal")
+                ]
+            )
         return Action()
 
 
@@ -74,6 +78,17 @@ class OpenThenCloseShortStrategy:
 
 
 class TradingSimulatorRunTest(unittest.TestCase):
+    def test_close_request_reason_is_recorded_on_trade(self):
+        result = TradingSimulator(
+            strategy=OpenThenCloseStrategy(),
+            data=make_data(),
+            params=make_params(),
+        ).run()
+
+        self.assertEqual(
+            result.trades[0]["exit_reason"], "take_profit_trend_reversal"
+        )
+
     def test_live_backtest_result_is_available_during_run(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "backtest.json"

@@ -150,6 +150,9 @@ class TradingSimulator:
 
     def _execute_close_requests(self, action, time, ask, bid):
         position_ids = [request.position_id for request in action.close_requests]
+        reasons_by_position_id = {
+            request.position_id: request.reason for request in action.close_requests
+        }
         active_ids = {
             position.position_id for position in self._portfolio.positions()
         }
@@ -174,7 +177,7 @@ class TradingSimulator:
                 gross_profit=realized_profit,
                 realized_pips=realized_pips,
                 exit_commission=exit_commission,
-                exit_reason="close_request",
+                exit_reason=reasons_by_position_id[position.position_id],
             )
         self._account.refresh(self._portfolio, bid, ask)
         return closed_positions
