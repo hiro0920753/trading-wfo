@@ -80,10 +80,8 @@ class OpenThenCloseShortStrategy:
 class TradingSimulatorRunTest(unittest.TestCase):
     def test_close_request_reason_is_recorded_on_trade(self):
         result = TradingSimulator(
-            strategy=OpenThenCloseStrategy(),
-            data=make_data(),
-            params=make_params(),
-        ).run()
+            make_params(), DummyTradingLog(), make_data()
+        ).run(OpenThenCloseStrategy())
 
         self.assertEqual(
             result.trades[0]["exit_reason"], "take_profit_trend_reversal"
