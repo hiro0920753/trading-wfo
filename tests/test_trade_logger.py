@@ -27,7 +27,7 @@ class TradeLoggerTest(unittest.TestCase):
         ])
         self.assertEqual(rows[0]["execution_price"], "111.0")
         self.assertEqual(rows[1]["execution_price"], "120.0")
-        self.assertEqual(rows[1]["exit_reason"], "close_request")
+        self.assertEqual(rows[1]["exit_reason"], "take_profit_trend_reversal")
         self.assertEqual(rows[1]["realized_profit"], "9.0")
 
     def test_none_logger_does_not_require_a_log_file(self):
