@@ -8,6 +8,7 @@ from .models import Action, CloseRequest, Order, Position, Side
 from .optimizer import (
     CategoricalParameter,
     FloatParameter,
+    GridOptimizer,
     IntParameter,
     Optimizer,
     TPEOptimizer,
@@ -45,6 +46,7 @@ __all__ = [
     "StrategyContext",
     "TradingWFOError",
     "FloatParameter",
+    "GridOptimizer",
     "IntParameter",
     "Order",
     "OptimizationResult",

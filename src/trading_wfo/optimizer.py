@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from itertools import product
 from typing import Any, Callable, Dict, Protocol, Sequence, Union, runtime_checkable
 
 import optuna
@@ -59,6 +61,140 @@ class CategoricalParameter:
 
 
 SearchParameter = Union[FloatParameter, IntParameter, CategoricalParameter]
+
+
+def _grid_values(specification):
+    if isinstance(specification, CategoricalParameter):
+        return list(specification.choices)
+    if isinstance(specification, IntParameter):
+        if specification.log:
+            raise ValueError("grid optimization does not support log integer parameters")
+        return list(range(specification.low, specification.high + 1, specification.step))
+    if isinstance(specification, FloatParameter):
+        if specification.log or specification.step is None:
+            raise ValueError(
+                "grid optimization requires stepped, non-log float parameters"
+            )
+        count = int(round((specification.high - specification.low) / specification.step))
+        values = [specification.low + index * specification.step for index in range(count + 1)]
+        return [min(specification.high, value) for value in values]
+    raise TypeError("unsupported grid parameter definition")
+
+
+class GridOptimizer:
+    """Exhaustively evaluate every combination in a finite parameter grid."""
+
+    def __init__(self, search_space, *, direction="maximize", workers=1):
+        if direction not in {"maximize", "minimize"}:
+            raise ValueError("direction must be 'maximize' or 'minimize'")
+        if not search_space:
+            raise ValueError("search_space must not be empty")
+        if workers <= 0:
+            raise ValueError("workers must be positive")
+        self.search_space = dict(search_space)
+        self.direction = direction
+        self.workers = workers
+        self.study = None
+
+    def optimize(
+        self,
+        objective,
+        *,
+        n_trials=50,
+        parameter_constraints=(),
+        progress=None,
+    ):
+        names = list(self.search_space)
+        values = [_grid_values(self.search_space[name]) for name in names]
+        combinations = [dict(zip(names, selected)) for selected in product(*values)]
+        if n_trials < len(combinations):
+            raise ValueError(
+                f"n_trials={n_trials} is smaller than the exhaustive grid "
+                f"size {len(combinations)}"
+            )
+
+        def evaluate(item):
+            number, params = item
+            parameter_result = evaluate_constraints(parameter_constraints, params)
+            if not parameter_result.feasible:
+                return OptimizationTrial(
+                    number=number,
+                    params=params,
+                    score=None,
+                    feasible=False,
+                    status="parameter_constraint_failed",
+                    violations=list(parameter_result.violations),
+                )
+            outcome = objective(params)
+            if isinstance(outcome, ObjectiveResult):
+                score = outcome.score
+                metrics = outcome.metrics
+                constraint_result = outcome.constraint_result
+            elif isinstance(outcome, tuple):
+                score, metrics = outcome
+                constraint_result = None
+            else:
+                score = outcome
+                metrics = {}
+                constraint_result = None
+            if constraint_result is not None and not constraint_result.feasible:
+                return OptimizationTrial(
+                    number=number,
+                    params=params,
+                    score=None,
+                    metrics=dict(metrics),
+                    feasible=False,
+                    status="result_constraint_failed",
+                    violations=list(constraint_result.violations),
+                )
+            if score is None:
+                raise ValueError("a feasible objective must provide a score")
+            return OptimizationTrial(
+                number=number,
+                params=params,
+                score=float(score),
+                metrics=dict(metrics),
+                feasible=True,
+                status="completed",
+            )
+
+        trials = []
+        with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            futures = {
+                executor.submit(evaluate, item): item[0]
+                for item in enumerate(combinations)
+            }
+            for future in as_completed(futures):
+                trial = future.result()
+                trials.append(trial)
+                feasible_scores = [
+                    item.score for item in trials
+                    if item.feasible and item.score is not None
+                ]
+                best_score = None if not feasible_scores else (
+                    max(feasible_scores)
+                    if self.direction == "maximize"
+                    else min(feasible_scores)
+                )
+                if progress is not None:
+                    progress.trial_completed(
+                        trial.number,
+                        len(combinations),
+                        trial.score,
+                        best_score,
+                        status=trial.status,
+                    )
+        trials.sort(key=lambda trial: trial.number)
+        feasible = [trial for trial in trials if trial.feasible]
+        if not feasible:
+            raise ValueError("optimization produced no feasible trials")
+        chooser = max if self.direction == "maximize" else min
+        best = chooser(feasible, key=lambda trial: trial.score)
+        return OptimizationResult(
+            best_params=dict(best.params),
+            best_score=float(best.score),
+            trials=trials,
+        )
 
 
 class TPEOptimizer:

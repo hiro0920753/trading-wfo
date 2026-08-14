@@ -9,6 +9,7 @@ from pathlib import Path
 from trading_wfo import (
     CategoricalParameter,
     FloatParameter,
+    GridOptimizer,
     IntParameter,
     TPEOptimizer,
 )
@@ -119,6 +120,32 @@ class TPEOptimizerTest(unittest.TestCase):
         ]
         self.assertTrue(rejected_rows)
         self.assertTrue(any(not trial["feasible"] for trial in payload["trials"]))
+
+
+class GridOptimizerTest(unittest.TestCase):
+    def test_evaluates_each_grid_combination_exactly_once(self):
+        seen = []
+        optimizer = GridOptimizer(
+            {
+                "ratio": FloatParameter(0.015, 0.02, step=0.0025),
+                "period": IntParameter(2, 4, step=2),
+            },
+            workers=2,
+        )
+
+        result = optimizer.optimize(
+            lambda params: seen.append(tuple(params.values())) or sum(params.values()),
+            n_trials=6,
+        )
+
+        self.assertEqual(len(result.trials), 6)
+        self.assertEqual(len(set(seen)), 6)
+        self.assertEqual(result.best_params, {"ratio": 0.02, "period": 4})
+
+    def test_rejects_trial_limit_smaller_than_grid(self):
+        optimizer = GridOptimizer({"value": IntParameter(1, 3)})
+        with self.assertRaisesRegex(ValueError, "exhaustive grid size 3"):
+            optimizer.optimize(lambda params: params["value"], n_trials=2)
 
 
 if __name__ == "__main__":

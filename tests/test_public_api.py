@@ -17,6 +17,7 @@ class PublicApiTest(unittest.TestCase):
         self.assertIn("WindowPeriod", trading_wfo.__all__)
         self.assertIn("SimulationResult", trading_wfo.__all__)
         self.assertIn("TPEOptimizer", trading_wfo.__all__)
+        self.assertIn("GridOptimizer", trading_wfo.__all__)
         self.assertIn("OptimizationResult", trading_wfo.__all__)
         self.assertIn("WalkForwardRunner", trading_wfo.__all__)
         self.assertIn("WalkForwardResult", trading_wfo.__all__)
