@@ -4,7 +4,7 @@ from .account import AccountConfig
 from .constraints import ConstraintResult
 from .execution import ExecutionConfig
 from .errors import ResultSaveError, StrategyExecutionError, TradingWFOError
-from .models import Action, CloseRequest, Order, Position, Side
+from .models import Action, CloseRequest, Order, OrderType, PendingOrder, Position, Side
 from .optimizer import (
     CategoricalParameter,
     FloatParameter,
@@ -49,6 +49,8 @@ __all__ = [
     "GridOptimizer",
     "IntParameter",
     "Order",
+    "OrderType",
+    "PendingOrder",
     "OptimizationResult",
     "OptimizationTrial",
     "ObjectiveResult",
@@ -70,4 +72,4 @@ __all__ = [
     "WindowPeriod",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

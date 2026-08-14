@@ -385,3 +385,38 @@ include execution price, realized profit/pips, account balance, metadata, and
 the cumulative realized result. Pass `None` instead of a logger when no file is
 needed. Use `TradeLogger(path, append=True)` to append later simulation runs to
 an existing CSV with the same schema.
+
+## Multiple markets and limit orders
+
+The simulator accepts either one DataFrame or a mapping keyed by symbol. The
+configured `common.symbol` is the execution instrument; the remaining markets
+are causal information inputs. At quote time `t`, each market context exposes
+only OHLC bars confirmed before `t`:
+
+```python
+simulator = TradingSimulator(params, logger, {
+    "USDJPY-": usdjpy,
+    "EURJPY-": eurjpy,
+    "EURUSD-": eurusd,
+})
+
+def strategy(context):
+    return Action(orders=[Order(
+        Side.LONG, 0.1,
+        order_type=OrderType.LIMIT,
+        limit_price=context["bid"] - 0.05,
+        expires_at=context["time"] + 3600,
+    )])
+```
+
+Pending orders are visible in `context["pending_orders"]` and can be removed
+with `Action(cancel_order_ids=[...])`. Numeric epoch seconds and datetime-like
+expiration values are supported. A submitted limit is not matched against the
+same bar's unknown high/low; matching starts when a later bar is confirmed.
+Long limits fill when that bar's low reaches the limit, and short limits when
+its high reaches the limit. The conservative fill price is exactly the limit.
+
+Orders for an auxiliary symbol are rejected explicitly. Supporting portfolio
+execution across instruments requires per-symbol pip size, contract size,
+margin currency, and account-currency conversion; accepting such orders
+without those specifications would produce incorrect P&L and margin.

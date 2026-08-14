@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.4.0 - 2026-08-14
+
+- Added causal multi-market inputs. Pass a `{symbol: DataFrame}` mapping and
+  read confirmed auxiliary-market bars from `context["markets"]`.
+- Added market and limit orders, pending-order cancellation and expiration.
+  A limit submitted at quote time `t` is first evaluated against the next
+  confirmed bar, preventing current-bar high/low look-ahead.
+- Added explicit order symbols. Execution remains tied to the configured
+  primary instrument; auxiliary symbols are information inputs until
+  instrument-specific contract and currency-conversion rules are supplied.
+- Added `pending_order_count` to simulation metrics.
+
 ## 0.3.0 - 2026-08-07
 
 - Changed simulation timing so strategies receive confirmed bars through

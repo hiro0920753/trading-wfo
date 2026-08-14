@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Union
+from collections.abc import Mapping
 
 import pandas as pd
 
-from ._data import prepare_market_data
+from ._data import prepare_market_data_bundle
 
 
 _PERIOD_PATTERN = re.compile(r"^(?P<value>[1-9]\d*)(?P<unit>min|h|d|w|mo|y)$")
@@ -82,15 +83,25 @@ class TradingDataset:
 
     def __init__(
         self,
-        data: pd.DataFrame,
+        data,
         *,
+        primary_symbol=None,
         optimization_period=None,
         validation_period=None,
         training_period=None,
         step_period=None,
         backtest_period=None,
     ):
-        self.data = prepare_market_data(data, sort=True)
+        if isinstance(data, Mapping):
+            if primary_symbol is None:
+                primary_symbol = next(iter(data))
+        elif primary_symbol is None:
+            primary_symbol = "PRIMARY"
+        self.primary_symbol = str(primary_symbol)
+        self.market_data = prepare_market_data_bundle(
+            data, primary_symbol=self.primary_symbol, sort=True
+        )
+        self.data = self.market_data[self.primary_symbol]
         if len(self.data) < 2:
             raise ValueError("data must contain at least two rows")
 
@@ -267,11 +278,15 @@ class TradingDataset:
             raise RuntimeError(
                 "backtest_data is only available in backtest mode"
             )
+        if isinstance(self._backtest_data, dict):
+            return {symbol: frame.copy() for symbol, frame in self._backtest_data.items()}
         return self._backtest_data.copy()
 
     def _create_backtest_data(self):
         if self.backtest_period is None:
-            return self.data.copy()
+            if len(self.market_data) == 1 and self.primary_symbol == "PRIMARY":
+                return self.data.copy()
+            return {symbol: frame.copy() for symbol, frame in self.market_data.items()}
         end = self._coverage_end()
         start = self.backtest_period.subtract_from(end)
         return self._slice(start, end, "backtest")
@@ -281,11 +296,16 @@ class TradingDataset:
         return self.data["time"].iloc[-1] + minimum_interval
 
     def _slice(self, start, end, section_name):
-        section = self.data.loc[
-            (self.data["time"] >= start) & (self.data["time"] < end)
-        ].copy()
-        if section.empty:
-            raise ValueError(
-                f"{section_name} period contains no rows: {start} to {end}"
-            )
-        return section.reset_index(drop=True)
+        sections = {}
+        for symbol, frame in self.market_data.items():
+            section = frame.loc[
+                (frame["time"] >= start) & (frame["time"] < end)
+            ].copy()
+            if section.empty:
+                raise ValueError(
+                    f"{section_name} period contains no rows for {symbol}: {start} to {end}"
+                )
+            sections[symbol] = section.reset_index(drop=True)
+        if len(sections) == 1 and self.primary_symbol == "PRIMARY":
+            return sections[self.primary_symbol]
+        return sections

@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from collections.abc import Mapping
 
 
 REQUIRED_COLUMNS = {"time", "bid", "ask", "open", "high", "low", "close"}
@@ -43,3 +44,22 @@ def prepare_market_data(data, *, sort=False):
     if (frame["ask"] < frame["bid"]).any():
         raise ValueError("ask price must be greater than or equal to bid price")
     return frame.reset_index(drop=True)
+
+
+def prepare_market_data_bundle(data, *, primary_symbol, sort=False):
+    """Normalize one DataFrame or a symbol-to-DataFrame mapping."""
+    if isinstance(data, pd.DataFrame):
+        return {str(primary_symbol): prepare_market_data(data, sort=sort)}
+    if not isinstance(data, Mapping) or not data:
+        raise TypeError("data must be a DataFrame or a non-empty symbol mapping")
+    prepared = {}
+    for symbol, frame in data.items():
+        name = str(symbol).strip()
+        if not name:
+            raise ValueError("market data symbol must not be empty")
+        if name in prepared:
+            raise ValueError(f"duplicate market data symbol: {name}")
+        prepared[name] = prepare_market_data(frame, sort=sort)
+    if primary_symbol not in prepared:
+        raise ValueError(f"primary symbol {primary_symbol!r} is missing from market data")
+    return prepared

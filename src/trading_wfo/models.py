@@ -30,6 +30,20 @@ class Side(str, enum.Enum):
             raise ValueError(f"unsupported side: {value}") from exc
 
 
+class OrderType(str, enum.Enum):
+    MARKET = "market"
+    LIMIT = "limit"
+
+    @classmethod
+    def from_value(cls, value: Union["OrderType", str]) -> "OrderType":
+        if isinstance(value, cls):
+            return value
+        try:
+            return cls(str(value).lower())
+        except ValueError as exc:
+            raise ValueError(f"unsupported order type: {value}") from exc
+
+
 def to_serializable(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -67,13 +81,50 @@ class Order:
     side: Side
     lot_size: float
     metadata: Dict[str, Any] = field(default_factory=dict)
+    order_type: OrderType = OrderType.MARKET
+    limit_price: Optional[float] = None
+    symbol: Optional[str] = None
+    expires_at: Any = None
 
     def __post_init__(self):
         object.__setattr__(self, "side", Side.from_value(self.side))
         object.__setattr__(self, "lot_size", float(self.lot_size))
         object.__setattr__(self, "metadata", normalize_metadata(self.metadata))
+        object.__setattr__(self, "order_type", OrderType.from_value(self.order_type))
+        if self.limit_price is not None:
+            object.__setattr__(self, "limit_price", float(self.limit_price))
+        if self.symbol is not None:
+            symbol = str(self.symbol).strip()
+            if not symbol:
+                raise ValueError("symbol must not be empty")
+            object.__setattr__(self, "symbol", symbol)
         if not math.isfinite(self.lot_size) or self.lot_size <= 0:
             raise ValueError("lot_size must be positive")
+        if self.order_type is OrderType.LIMIT:
+            if self.limit_price is None or not math.isfinite(self.limit_price):
+                raise ValueError("limit orders require a finite limit_price")
+        elif self.limit_price is not None:
+            raise ValueError("market orders must not specify limit_price")
+
+
+@dataclass
+class PendingOrder:
+    pending_order_id: int
+    side: Side
+    lot_size: float
+    limit_price: float
+    symbol: str
+    submitted_time: Any
+    expires_at: Any = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.pending_order_id = int(self.pending_order_id)
+        self.side = Side.from_value(self.side)
+        self.lot_size = float(self.lot_size)
+        self.limit_price = float(self.limit_price)
+        self.symbol = str(self.symbol)
+        self.metadata = normalize_metadata(self.metadata)
 
 
 @dataclass(frozen=True)
@@ -96,10 +147,12 @@ class Action:
     orders: List[Order] = field(default_factory=list)
     close_requests: List[CloseRequest] = field(default_factory=list)
     stop_trading: bool = False
+    cancel_order_ids: List[int] = field(default_factory=list)
 
     def __post_init__(self):
         object.__setattr__(self, "orders", list(self.orders))
         object.__setattr__(self, "close_requests", list(self.close_requests))
+        object.__setattr__(self, "cancel_order_ids", [int(value) for value in self.cancel_order_ids])
 
 
 @dataclass
