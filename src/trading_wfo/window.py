@@ -91,6 +91,7 @@ class TradingDataset:
         training_period=None,
         step_period=None,
         backtest_period=None,
+        warmup_bars=0,
     ):
         if isinstance(data, Mapping):
             if primary_symbol is None:
@@ -102,6 +103,9 @@ class TradingDataset:
             data, primary_symbol=self.primary_symbol, sort=True
         )
         self.data = self.market_data[self.primary_symbol]
+        self.warmup_bars = int(warmup_bars)
+        if self.warmup_bars < 0:
+            raise ValueError("warmup_bars must be non-negative")
         if len(self.data) < 2:
             raise ValueError("data must contain at least two rows")
 
@@ -164,6 +168,7 @@ class TradingDataset:
         training_period=None,
         step_period=None,
         backtest_period=None,
+        warmup_bars=0,
         read_csv_kwargs=None,
     ):
         csv_paths = cls._resolve_csv_paths(paths)
@@ -177,6 +182,7 @@ class TradingDataset:
             validation_period=validation_period,
             step_period=step_period,
             backtest_period=backtest_period,
+            warmup_bars=warmup_bars,
         )
 
     @staticmethod
@@ -247,10 +253,12 @@ class TradingDataset:
                 else self._slice(training_start, training_end, "training")
             )
             optimization_data = self._slice(
-                optimization_start, optimization_end, "optimization"
+                optimization_start, optimization_end, "optimization",
+                warmup_bars=self.warmup_bars,
             )
             validation_data = self._slice(
-                validation_start, validation_end, "validation"
+                validation_start, validation_end, "validation",
+                warmup_bars=self.warmup_bars,
             )
             yield WalkForwardWindow(
                 index=window_index,
@@ -295,12 +303,13 @@ class TradingDataset:
         minimum_interval = self.data["time"].diff().dropna().min()
         return self.data["time"].iloc[-1] + minimum_interval
 
-    def _slice(self, start, end, section_name):
+    def _slice(self, start, end, section_name, *, warmup_bars=0):
         sections = {}
         for symbol, frame in self.market_data.items():
-            section = frame.loc[
-                (frame["time"] >= start) & (frame["time"] < end)
-            ].copy()
+            start_index = int(frame["time"].searchsorted(start, side="left"))
+            end_index = int(frame["time"].searchsorted(end, side="left"))
+            context_start = max(0, start_index - int(warmup_bars))
+            section = frame.iloc[context_start:end_index].copy()
             if section.empty:
                 raise ValueError(
                     f"{section_name} period contains no rows for {symbol}: {start} to {end}"

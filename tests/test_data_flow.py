@@ -112,6 +112,24 @@ class TradingDatasetTest(unittest.TestCase):
         self.assertEqual(window.optimization_data["signal"].tolist(), list(range(10)))
         self.assertEqual(window.validation_data["signal"].tolist(), list(range(10, 15)))
 
+    def test_warmup_bars_are_prepended_without_changing_window_dates(self):
+        dataset = TradingDataset.from_dataframe(
+            make_bars(size=20, frequency="1D"),
+            optimization_period="10d",
+            validation_period="5d",
+            warmup_bars=3,
+        )
+
+        window = next(iter(dataset))
+
+        self.assertEqual(window.optimization_data["signal"].tolist(), list(range(10)))
+        self.assertEqual(window.validation_data["signal"].tolist(), list(range(7, 15)))
+        self.assertEqual(window.validation_start, pd.Timestamp("2026-01-11"))
+
+    def test_negative_warmup_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "warmup_bars"):
+            TradingDataset.from_dataframe(make_bars(), warmup_bars=-1)
+
     def test_warns_when_validation_windows_overlap(self):
         dataset = TradingDataset.from_dataframe(
             make_bars(size=30, frequency="1D"),
@@ -202,6 +220,25 @@ class TradingSimulatorDataTest(unittest.TestCase):
         self.assertEqual(info["row"]["signal"], 5)
         self.assertEqual(info["bars"].iloc[-1]["signal"], 5)
         self.assertEqual(info["bid"], data.iloc[6]["bid"])
+
+    def test_warmup_makes_first_simulated_quote_equal_validation_start(self):
+        data = make_bars(size=8)
+        window = next(iter(TradingDataset.from_dataframe(
+            data,
+            optimization_period="20min",
+            validation_period="15min",
+            warmup_bars=2,
+        )))
+        simulator = TradingSimulator(
+            self.params, DummyTradingLog(), window.validation_data
+        )
+        contexts = []
+
+        simulator.run(lambda context: contexts.append(context) or Action())
+
+        self.assertEqual(pd.Timestamp(contexts[0]["time"], unit="s"), window.validation_start)
+        self.assertEqual(contexts[0]["row"]["signal"], 3)
+        self.assertEqual(contexts[0]["bid"], data.iloc[4]["bid"])
 
     def test_rejects_unsorted_data_instead_of_reordering_it(self):
         data = make_bars(size=4).iloc[::-1]
