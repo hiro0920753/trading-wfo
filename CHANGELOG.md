@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## 0.4.0 - 2026-08-14
 
+- Added warmup context to walk-forward windows so indicators can be initialized
+  from earlier bars without leaking warmup rows into optimization or validation.
 - Added causal multi-market inputs. Pass a `{symbol: DataFrame}` mapping and
   read confirmed auxiliary-market bars from `context["markets"]`.
 - Added market and limit orders, pending-order cancellation and expiration.
