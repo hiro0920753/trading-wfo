@@ -10,6 +10,7 @@ from .result import (
     ParameterVariationResult,
     WalkForwardResult,
     WalkForwardWindowResult,
+    TrainingResult,
 )
 from .robustness import generate_parameter_variations
 from .window import DatasetMode, TradingDataset
@@ -96,7 +97,8 @@ class WalkForwardRunner:
         for window in windows:
             if self.progress is not None:
                 self.progress.window_started(window.index, total_windows)
-            model = self._train_model(window.training_data)
+            training_result = self._train_model(window.training_data)
+            model = training_result.model
 
             def objective(params):
                 strategy = self.strategy_factory(params, model)
@@ -151,6 +153,7 @@ class WalkForwardRunner:
                     validation_end=window.validation_end,
                     validation_constraint_result=validation_constraint_result,
                     parameter_stability_result=stability_result,
+                    training_artifacts=training_result.artifacts,
                 )
             )
             if self.result_path is not None:
@@ -291,13 +294,17 @@ class WalkForwardRunner:
 
     def _train_model(self, training_data):
         if training_data is None:
-            return None
+            return TrainingResult(model=None)
         if self.trainer is None:
             raise ValueError(
                 "trainer is required when training_period is configured"
             )
         if hasattr(self.trainer, "fit"):
-            return self.trainer.fit(training_data)
-        if callable(self.trainer):
-            return self.trainer(training_data)
-        raise TypeError("trainer must be callable or define fit(data)")
+            trained = self.trainer.fit(training_data)
+        elif callable(self.trainer):
+            trained = self.trainer(training_data)
+        else:
+            raise TypeError("trainer must be callable or define fit(data)")
+        if isinstance(trained, TrainingResult):
+            return trained
+        return TrainingResult(model=trained)

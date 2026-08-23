@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.5.0 - 2026-08-23
+
+- Added `TrainingResult` so each walk-forward window can persist JSON-safe
+  model weights, train/validation losses, sample counts, seeds, and other
+  training audit artifacts alongside its chronological period boundaries.
+- Added a self-contained machine-learning example that retrains a NumPy
+  logistic model, optimizes a trading threshold, and performs forward
+  validation in every window.
+
 ## 0.4.0 - 2026-08-14
 
 - Added warmup context to walk-forward windows so indicators can be initialized

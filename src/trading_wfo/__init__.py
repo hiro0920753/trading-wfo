@@ -23,6 +23,7 @@ from .result import (
     WalkForwardWindowResult,
     ParameterStabilityResult,
     ParameterVariationResult,
+    TrainingResult,
 )
 from .simulator import TradingSimulator
 from .strategy import Strategy, StrategyContext
@@ -66,10 +67,11 @@ __all__ = [
     "WalkForwardWindowResult",
     "ParameterStabilityResult",
     "ParameterVariationResult",
+    "TrainingResult",
     "DatasetMode",
     "TradingDataset",
     "WalkForwardWindow",
     "WindowPeriod",
 ]
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

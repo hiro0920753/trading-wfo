@@ -93,6 +93,7 @@ class WalkForwardResult:
                 "validation_violations": list(
                     window.validation_constraint_result.violations
                 ),
+                "training_artifacts": window.training_artifacts,
             }
             row.update(
                 {
@@ -224,6 +225,14 @@ class ParameterStabilityResult:
 
 
 @dataclass
+class TrainingResult:
+    """A fitted model plus JSON-serializable per-window training artifacts."""
+
+    model: Any
+    artifacts: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class WalkForwardWindowResult:
     index: int
     optimization_result: OptimizationResult
@@ -238,6 +247,7 @@ class WalkForwardWindowResult:
         default_factory=ConstraintResult.accepted
     )
     parameter_stability_result: Optional[ParameterStabilityResult] = None
+    training_artifacts: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def best_params(self):

@@ -282,6 +282,33 @@ results/usdjpy_m15_ema_cross/
 The example is intentionally a verification strategy, not a recommendation to
 trade or an assertion that the EMA parameters will remain profitable.
 
+## Machine-learning training -> optimization -> validation example
+
+`WalkForwardRunner` can fit a user-supplied machine-learning or DNN model before
+the trading-parameter search in every chronological window. The fitted model is
+passed to every optimization trial in that window and then to the selected
+strategy for one validation run. The next window repeats the complete sequence
+with its own earlier training section.
+
+```powershell
+python examples/ml_direction_wfo.py
+python examples/ml_direction_wfo.py --validation-ratio 0.30 --epochs 500
+```
+
+This self-contained example uses a tiny NumPy logistic classifier so it needs no
+ML dependency beyond the package requirements. Replace `LogisticDirectionTrainer.fit`
+with a scikit-learn estimator or a PyTorch/TensorFlow training function and return
+the fitted model. Return `TrainingResult(model, artifacts)` to save per-window
+weights, train/valid loss, sample counts, seeds, or other JSON-serializable audit
+data in both WFO JSON and the window rows of WFO CSV. Model architecture and training settings should be frozen before
+the run; the built-in optimizer searches the subsequent trading parameters and
+does not retrain the model for every trial.
+
+The example's `--validation-ratio` reserves the chronological tail of each AI
+training section for internal model validation. It is not the WFO forward
+section. The selected ratio, epoch count, and learning rate are recorded in
+every window's `training_artifacts`.
+
 ## Local dashboard
 
 Open a saved WFO result in the read-only FastAPI dashboard:

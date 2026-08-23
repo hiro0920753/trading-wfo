@@ -22,6 +22,7 @@ from trading_wfo import (
     TPEOptimizer,
     TradingDataset,
     TradingSimulator,
+    TrainingResult,
     WalkForwardRunner,
 )
 
@@ -80,6 +81,18 @@ class RecordingTrainer:
         time_range = (data["time"].min(), data["time"].max())
         self.training_ranges.append(time_range)
         return {"training_end": time_range[1]}
+
+
+class ArtifactTrainer:
+    def fit(self, data):
+        return TrainingResult(
+            model={"weight": 0.75},
+            artifacts={
+                "weights": [0.75, -0.25],
+                "train_loss": 0.42,
+                "valid_loss": 0.51,
+            },
+        )
 
 
 class FixedCustomOptimizer:
@@ -350,6 +363,34 @@ class WalkForwardRunnerTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "trainer is required"):
             self.make_runner().run(dataset)
+
+    def test_training_artifacts_are_saved_for_each_window(self):
+        dataset = TradingDataset.from_dataframe(
+            make_data(14),
+            training_period="2d",
+            optimization_period="4d",
+            validation_period="2d",
+        )
+        result = self.make_runner(trainer=ArtifactTrainer()).run(dataset)
+
+        self.assertTrue(result.windows)
+        for window in result.windows:
+            self.assertEqual(window.training_artifacts["weights"], [0.75, -0.25])
+            self.assertEqual(window.training_artifacts["train_loss"], 0.42)
+            self.assertEqual(window.training_artifacts["valid_loss"], 0.51)
+
+        with tempfile.TemporaryDirectory() as directory:
+            json_path = Path(directory) / "result.json"
+            csv_path = Path(directory) / "result.csv"
+            result.save_json(json_path)
+            result.save_csv(csv_path)
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            with csv_path.open(encoding="utf-8", newline="") as file:
+                rows = list(csv.DictReader(file))
+
+        self.assertEqual(payload["windows"][0]["training_artifacts"]["weights"], [0.75, -0.25])
+        window_row = next(row for row in rows if row["record_type"] == "window")
+        self.assertIn("train_loss", window_row["training_artifacts"])
 
     def test_evaluates_parameter_variations_on_validation_data(self):
         dataset = TradingDataset.from_dataframe(

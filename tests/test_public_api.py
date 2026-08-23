@@ -33,6 +33,7 @@ class PublicApiTest(unittest.TestCase):
         self.assertIn("ObjectiveResult", trading_wfo.__all__)
         self.assertIn("ParameterStabilityResult", trading_wfo.__all__)
         self.assertIn("ParameterVariationResult", trading_wfo.__all__)
+        self.assertIn("TrainingResult", trading_wfo.__all__)
 
     def test_internal_implementation_types_are_not_public(self):
         self.assertNotIn("Account", trading_wfo.__all__)
