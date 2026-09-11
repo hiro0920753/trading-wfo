@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+## 0.6.0 - 2026-09-11
+
+- Added opt-in frozen OOS robustness scenarios: historical-spread multipliers,
+  market-entry delay and explicit parameter offsets, with no reoptimization.
+- Added compact per-window JSON/CSV diagnostics, calendar attribution, optional
+  seeded trade Monte Carlo and aggregate comparisons on the Robustness dashboard.
+- Parameter-stability evaluation now uses the validation simulator factory,
+  matching the center result when a custom validation factory is supplied.
+
 ## 0.5.0 - 2026-08-23
 
 - Added `TrainingResult` so each walk-forward window can persist JSON-safe

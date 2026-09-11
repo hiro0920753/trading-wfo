@@ -76,6 +76,18 @@
       <div class="page-heading"><p class="eyebrow">PARAMETER STABILITY</p><h1>Robustness around the optimum</h1><p>Inspect how nearby parameter combinations perform on each validation window.</p></div>
       <div class="toolbar"><label>Window<select id="robustness-window"></select></label></div>
       <section class="panel table-panel">
+        <div class="panel-heading"><div><p class="eyebrow">FROZEN OOS STRESS TESTS</p><h2>Execution and timing sensitivity</h2></div></div>
+        <p id="stress-note" class="empty-state"></p>
+        <div class="table-scroll"><table><thead><tr><th>Scenario</th><th>Profit</th><th>Change vs baseline</th><th>PF</th><th>DD %</th><th>Trades</th><th>Status</th></tr></thead><tbody id="stress-rows"></tbody></table></div>
+        <h3>Across validation windows</h3>
+        <div class="table-scroll"><table><thead><tr><th>Scenario</th><th>Sum profit</th><th>PF</th><th>Negative windows</th><th>Worst window DD %</th><th>Profit without best year</th></tr></thead><tbody id="stress-summary-rows"></tbody></table></div>
+        <h3>Calendar-year realized profit (UTC exit date)</h3>
+        <div class="table-scroll"><table><thead><tr><th>Scenario</th><th>Year</th><th>Profit</th><th>Trades</th></tr></thead><tbody id="stress-year-rows"></tbody></table></div>
+        <h3>Selected window: monthly realized profit</h3>
+        <div class="table-scroll"><table><thead><tr><th>Scenario</th><th>Month</th><th>Profit</th><th>Trades</th></tr></thead><tbody id="stress-month-rows"></tbody></table></div>
+        <p id="stress-monte-carlo" class="empty-state"></p>
+      </section>
+      <section class="panel table-panel">
         <div class="panel-heading"><div><p class="eyebrow">VALIDATION DISTRIBUTION</p><h2 id="stability-title">Window —</h2></div><div class="legend"><span class="legend-box optimization"></span>Variants <span class="legend-box validation stability-center"></span>Optimized center</div></div>
         <div id="stability-empty" class="empty-state hidden">Configure parameter_variations in WalkForwardRunner to generate this analysis.</div>
         <div id="stability-content"><div id="stability-metrics" class="stability-metrics"></div><canvas id="stability-chart" height="280"></canvas><div class="table-scroll stability-table"><table><thead><tr><th>#</th><th>Parameters</th><th>Offsets</th><th>Net profit</th><th>Return</th><th>Drawdown</th><th>Trades</th><th>Status</th></tr></thead><tbody id="stability-rows"></tbody></table></div></div>
@@ -129,6 +141,7 @@
     </section>
   </main>
   <script src="/plotly.min.js"></script>
+  <script src="/stress.js"></script>
   <script src="/app.js"></script>
   <script src="/trade-chart.js"></script>
   <script src="/chart-export.js"></script>

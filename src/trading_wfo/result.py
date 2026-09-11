@@ -62,6 +62,7 @@ class WalkForwardResult:
 
     windows: List["WalkForwardWindowResult"] = field(default_factory=list)
     aggregate_metrics: Dict[str, Any] = field(default_factory=dict)
+    robustness_summary: Optional[Dict[str, Any]] = None
 
     def to_dict(self):
         return _json_value(asdict(self))
@@ -121,6 +122,16 @@ class WalkForwardResult:
                 )
                 logger.next_row()
             stability = window.parameter_stability_result
+            if window.robustness_result is not None:
+                for scenario in window.robustness_result['scenarios']:
+                    logger.add(_json_value({'record_type':'stress_scenario',
+                        'window_index':window.index, **scenario}))
+                    logger.next_row()
+                if window.robustness_result.get('monte_carlo'):
+                    logger.add(_json_value({'record_type':'monte_carlo',
+                        'window_index':window.index,
+                        'monte_carlo':window.robustness_result['monte_carlo']}))
+                    logger.next_row()
             if stability is not None:
                 for variation in stability.variations:
                     logger.add(
@@ -248,6 +259,7 @@ class WalkForwardWindowResult:
     )
     parameter_stability_result: Optional[ParameterStabilityResult] = None
     training_artifacts: Dict[str, Any] = field(default_factory=dict)
+    robustness_result: Optional[Dict[str, Any]] = None
 
     @property
     def best_params(self):

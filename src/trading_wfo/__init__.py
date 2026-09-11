@@ -30,8 +30,11 @@ from .strategy import Strategy, StrategyContext
 from .trade_logger import TradeLogger
 from .wfo import WalkForwardRunner
 from .window import DatasetMode, TradingDataset, WalkForwardWindow, WindowPeriod
+from .stress import RobustnessConfig, StressScenario
 
 __all__ = [
+    "RobustnessConfig",
+    "StressScenario",
     "AccountConfig",
     "Action",
     "CloseRequest",

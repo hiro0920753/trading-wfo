@@ -1,4 +1,5 @@
 from pathlib import Path
+from copy import deepcopy
 
 from .metrics import calculate_metrics
 from .constraints import evaluate_constraints
@@ -13,6 +14,7 @@ from .result import (
     TrainingResult,
 )
 from .robustness import generate_parameter_variations
+from .stress import RobustnessConfig, evaluate_robustness, summarize_robustness
 from .window import DatasetMode, TradingDataset
 
 
@@ -37,6 +39,7 @@ class WalkForwardRunner:
         optimization_workers=None,
         progress_path=None,
         result_path=None,
+        robustness=None,
     ):
         self.simulator_factory = simulator_factory
         self.validation_simulator_factory = (
@@ -45,6 +48,9 @@ class WalkForwardRunner:
             else validation_simulator_factory
         )
         self.strategy_factory = strategy_factory
+        if robustness is not None and not isinstance(robustness, RobustnessConfig):
+            raise TypeError('robustness must be a RobustnessConfig')
+        self.robustness = deepcopy(robustness)
         self.optimizer = optimizer
         if not isinstance(optimizer, Optimizer):
             raise TypeError("optimizer must implement optimize()")
@@ -101,7 +107,7 @@ class WalkForwardRunner:
             model = training_result.model
 
             def objective(params):
-                strategy = self.strategy_factory(params, model)
+                strategy = self.strategy_factory(params, deepcopy(model) if self.robustness else model)
                 simulator = self.simulator_factory(window.optimization_data)
                 simulation_result = simulator.run(strategy)
                 constraint_result = evaluate_constraints(
@@ -124,10 +130,10 @@ class WalkForwardRunner:
                 progress=self.progress,
             )
             validation_strategy = self.strategy_factory(
-                optimization.best_params, model
+                deepcopy(optimization.best_params), deepcopy(model) if self.robustness else model
             )
             validation_simulator = self.validation_simulator_factory(
-                window.validation_data
+                deepcopy(window.validation_data) if self.robustness else window.validation_data
             )
             validation_result = validation_simulator.run(validation_strategy)
             validation_constraint_result = evaluate_constraints(
@@ -140,6 +146,16 @@ class WalkForwardRunner:
                 center_result=validation_result,
                 center_constraint_result=validation_constraint_result,
             )
+            robustness_result = None
+            if self.robustness is not None:
+                robustness_result = evaluate_robustness(
+                    config=self.robustness, center_params=optimization.best_params,
+                    model=model, baseline=validation_result, data=window.validation_data,
+                    simulator_factory=self.validation_simulator_factory,
+                    strategy_factory=self.strategy_factory,
+                    parameter_constraints=self.parameter_constraints,
+                    result_constraints=self.result_constraints, window_index=window.index,
+                )
             window_results.append(
                 WalkForwardWindowResult(
                     index=window.index,
@@ -154,12 +170,14 @@ class WalkForwardRunner:
                     validation_constraint_result=validation_constraint_result,
                     parameter_stability_result=stability_result,
                     training_artifacts=training_result.artifacts,
+                    robustness_result=robustness_result,
                 )
             )
             if self.result_path is not None:
                 WalkForwardResult(
                     windows=list(window_results),
                     aggregate_metrics=self._aggregate_metrics(window_results),
+                    robustness_summary=summarize_robustness(window_results),
                 ).save_json(self.result_path)
             if self.progress is not None:
                 self.progress.window_completed(
@@ -173,6 +191,7 @@ class WalkForwardRunner:
         result = WalkForwardResult(
             windows=window_results,
             aggregate_metrics=self._aggregate_metrics(window_results),
+            robustness_summary=summarize_robustness(window_results),
         )
         if self.result_path is not None and not window_results:
             result.save_json(self.result_path)
@@ -216,8 +235,9 @@ class WalkForwardRunner:
                 simulation_result = center_result
                 constraint_result = center_constraint_result
             else:
-                strategy = self.strategy_factory(params, model)
-                simulator = self.simulator_factory(window.validation_data)
+                strategy = self.strategy_factory(params, deepcopy(model) if self.robustness else model)
+                simulator = self.validation_simulator_factory(
+                    deepcopy(window.validation_data) if self.robustness else window.validation_data)
                 simulation_result = simulator.run(strategy)
                 constraint_result = evaluate_constraints(
                     self.result_constraints, simulation_result

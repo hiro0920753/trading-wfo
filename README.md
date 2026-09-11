@@ -447,3 +447,84 @@ Orders for an auxiliary symbol are rejected explicitly. Supporting portfolio
 execution across instruments requires per-symbol pip size, contract size,
 margin currency, and account-currency conversion; accepting such orders
 without those specifications would produce incorrect P&L and margin.
+
+## Frozen OOS robustness suite
+
+Use `robustness=` to evaluate stress scenarios **after** each window selects its
+parameters. This adds no optimization trials and never chooses a new winner
+from stressed OOS results. Existing `parameter_variations` can still be used.
+
+```python
+from trading_wfo import RobustnessConfig, StressScenario, WalkForwardRunner
+
+runner = WalkForwardRunner(
+    simulator_factory=simulator_factory,
+    strategy_factory=strategy_factory,
+    optimizer=optimizer,
+    robustness=RobustnessConfig(
+        scenarios=(
+            StressScenario("spread_x1.25", spread_multiplier=1.25),
+            StressScenario("spread_x1.5", spread_multiplier=1.5),
+            StressScenario("spread_x2", spread_multiplier=2.0),
+            StressScenario("entry_1bar_later", entry_delay_bars=1),
+            # Only when your optimized parameter is expressed in minutes:
+            StressScenario("start_plus15m", parameter_offsets={"start_minute": 15}),
+            StressScenario("start_minus15m", parameter_offsets={"start_minute": -15}),
+        ),
+        monte_carlo_samples=1000,  # optional; 0 disables it
+        seed=42,
+    ),
+)
+result = runner.run(dataset)
+result.save_json("results/robustness.json")
+result.save_csv("results/robustness.csv")
+```
+
+Each window's `robustness_result` contains baseline/stress metrics, the profit
+change versus baseline, constraint status, and UTC year/month realized PnL.
+`result.robustness_summary` compares window sums, negative window counts,
+worst **individual-window** DD, and profit excluding the best calendar year.
+These appear on the dashboard's **Robustness** page. Old result files and
+`robustness=None` remain supported. Extra full trade logs/equity curves are not
+stored per scenario, keeping result files compact.
+
+The spread multiplier expands the historical bid/ask around the same midpoint;
+OHLC is untouched. Existing configured commissions and extra execution costs
+still apply. Quote-based signals and spread filters see the stressed quotes,
+so the set of trades can change; profit need not decline monotonically.
+The raw input's separate `spread` column is not reinterpreted: strategies should
+use the simulator's current `spread`/bid/ask rather than assume that column's units.
+
+An entry delay waits for `entry_delay_bars` subsequent strategy evaluations.
+One means approximately 15 minutes on regular M15 data, but gaps can make it
+longer. The delayed market order uses the quote at release, not the old price.
+Exits remain immediate. One entry batch is queued at a time; repeated entry
+signals while waiting or releasing are suppressed. Close requests or
+`stop_trading` discard the queued batch, and expired orders are discarded.
+`context["delayed_entry_orders"]` exposes that queue to compatible strategies.
+Signals are not re-qualified against proprietary filters on release. Custom
+entry invalidation requires strategy-specific logic. LIMIT orders fail explicitly
+in delayed scenarios; this is not a simulator for broker latency of pending orders.
+
+Offset keys must be numeric keys in the selected parameters. Their units belong
+to your strategy: use minutes for a minute-valued start time, not for an hour.
+Parameter-constraint failures are recorded as skipped, not zero-profit tests.
+Result-constraint failures retain their measured results and status. Exceptions
+abort the run rather than silently producing successful-looking diagnostics.
+Fitted models must support `deepcopy` when robustness is enabled; each scenario
+receives an isolated copy. Randomness inside strategy/model factories must be
+seeded by the caller for controlled comparisons.
+
+Year/month rows attribute net trade PnL to **exit date**, not marked-to-market
+period returns. Warmup rows do not become trades. Window sums are not a compounded
+portfolio; overlapping validation windows are flagged because their sums count
+observations repeatedly. A single partial calendar year cannot establish yearly
+stability. Inspect its actual validation dates and trade counts.
+
+Optional Monte Carlo reports per-window permutations and IID resampling of
+baseline realized trade PnL, in account currency. Permutations keep total profit
+constant; their DD changes with ordering. Bootstrap negative-profit frequency is
+a sample diagnostic, **not** a forecast of future loss probability. Neither
+method recovers intratrade risk or preserves market serial dependence.
+
+Run `python examples/robustness_suite.py` for a small synthetic end-to-end example.
