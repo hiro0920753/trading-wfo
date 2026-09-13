@@ -79,6 +79,38 @@ is available as `DatasetMode.BACKTEST` or `DatasetMode.WALK_FORWARD`.
 `Account`, `Portfolio`, and `Execution` are internal implementation details.
 Account behavior is configured through the public `AccountConfig` class.
 
+Periodic external contributions can be applied before order processing at the
+first available bar on or after each scheduled timestamp:
+
+```python
+from trading_wfo import AccountConfig, ContributionSchedule
+
+account_config = AccountConfig(
+    initial_balance=100_000,
+    leverage=25,
+    units_per_lot=100_000,
+    price_per_pip=0.01,
+    contribution_schedules=(
+        ContributionSchedule(
+            amount=50_000,
+            period="1mo",
+            start="2026-01-25T00:00:00+09:00",
+        ),
+    ),
+)
+```
+
+When `start` is omitted, the first contribution is one `period` after the
+simulation's first executable bar. `end` is optional and inclusive. Results
+record each event in `cash_flows`; `net_profit` excludes contributions, while
+`balance_change`, `total_contributions`, and `time_weighted_return_pct` report
+cash growth and contribution-adjusted performance separately. JSON parameters
+may supply the same fields under `asset.contribution_schedules`.
+For contribution schedules, market timestamps without a timezone are interpreted
+as UTC. Schedule dates without a timezone use the market data's timezone;
+explicit timezone offsets are converted to that timezone before comparison.
+
+
 Strategies return dataclasses defined by the library:
 
 ```python
@@ -95,6 +127,20 @@ action = Action(
     close_requests=[CloseRequest(position_id=3)],
 )
 ```
+
+Omit the size to close the entire position, or specify one partial-close mode:
+
+```python
+Action(close_requests=[CloseRequest(position_id=3)])                 # all
+Action(close_requests=[CloseRequest(position_id=3, lot_size=0.02)]) # fixed size
+Action(close_requests=[CloseRequest(position_id=3, fraction=0.5)])  # 50%
+```
+
+`lot_size` and `fraction` are mutually exclusive. A partial close records one
+trade fragment with `is_partial_close=true` and `remaining_lot_size`, charges
+commission only on the closed size, and keeps the remaining position's ID,
+entry price, metadata, and MFE/MAE path. Both the closed and remaining sizes
+must respect `ExecutionConfig.minimum_lot_size`.
 
 A single simulation calls the strategy at time `t` with confirmed bars through
 `t-1` and the current Bid/Ask from `t`. Market orders and close requests are

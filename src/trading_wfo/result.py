@@ -31,6 +31,7 @@ class SimulationResult:
     trades: List[Dict[str, Any]] = field(default_factory=list)
     equity_curve: List[Dict[str, Any]] = field(default_factory=list)
     rejected_orders: List[Dict[str, Any]] = field(default_factory=list)
+    cash_flows: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self):
         return _json_value(asdict(self))
@@ -49,6 +50,9 @@ class SimulationResult:
             logger.add(
                 {"record_type": "rejected_order", **_json_value(rejection)}
             )
+            logger.next_row()
+        for cash_flow in self.cash_flows:
+            logger.add({"record_type": "cash_flow", **_json_value(cash_flow)})
             logger.next_row()
         for point in self.equity_curve:
             logger.add({"record_type": "equity", **_json_value(point)})

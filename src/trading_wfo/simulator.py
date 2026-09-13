@@ -3,6 +3,7 @@ from datetime import date, datetime
 from pathlib import Path
 from time import monotonic
 
+import pandas as pd
 from tqdm.auto import tqdm
 
 from ._account import Account
@@ -39,6 +40,18 @@ class TradingSimulator:
                 reinvestment_rate=params.get("asset", {}).get(
                     "reinvestment_rate", 1.0
                 ),
+                reserve_refill_threshold=params.get("asset", {}).get(
+                    "reserve_refill_threshold", 0.0
+                ),
+                reserve_refill_target=params.get("asset", {}).get(
+                    "reserve_refill_target", 0.0
+                ),
+                reserve_margin_topup_metadata_key=params.get("asset", {}).get(
+                    "reserve_margin_topup_metadata_key", ""
+                ),
+                contribution_schedules=tuple(
+                    params.get("asset", {}).get("contribution_schedules", ())
+                ),
             )
         elif not isinstance(account_config, AccountConfig):
             raise TypeError("account_config must be an AccountConfig")
@@ -70,6 +83,58 @@ class TradingSimulator:
         self._trade_records = []
         self._total_commission = 0.0
         self._rejected_orders = []
+        self._cash_flows = []
+        self._contribution_states = self._build_contribution_states()
+
+    def _build_contribution_states(self):
+        if not self._account_config.contribution_schedules:
+            return []
+        from .window import WindowPeriod
+
+        first = pd.Timestamp(self._data.iloc[self._lookback_bars]["time"])
+        # Naive market timestamps use the same UTC interpretation as the
+        # numeric timestamps passed to _apply_due_contributions.
+        if first.tzinfo is None:
+            first = first.tz_localize("UTC")
+        states = []
+        for index, schedule in enumerate(self._account_config.contribution_schedules):
+            period = WindowPeriod.parse(schedule.period)
+            due = period.add_to(first) if schedule.start is None else pd.Timestamp(schedule.start)
+            if due.tzinfo is None:
+                due = due.tz_localize(first.tzinfo or "UTC")
+            elif first.tzinfo is not None:
+                due = due.tz_convert(first.tzinfo)
+            while due < first:
+                due = period.add_to(due)
+            end = None if schedule.end is None else pd.Timestamp(schedule.end)
+            if end is not None:
+                if end.tzinfo is None:
+                    end = end.tz_localize(first.tzinfo or "UTC")
+                elif first.tzinfo is not None:
+                    end = end.tz_convert(first.tzinfo)
+            states.append({"index": index, "schedule": schedule, "period": period, "due": due, "end": end})
+        return states
+
+    def _apply_due_contributions(self, current_time):
+        current = pd.Timestamp(current_time, unit="s", tz="UTC")
+        total = 0.0
+        for state in self._contribution_states:
+            due = state["due"]
+            if due.tzinfo is not None:
+                current_for_schedule = current.tz_convert(due.tzinfo)
+            else:
+                current_for_schedule = current.tz_localize(None)
+            while due <= current_for_schedule and (state["end"] is None or due <= state["end"]):
+                amount = float(state["schedule"].amount)
+                self._account.contribute(amount)
+                total += amount
+                self._cash_flows.append({
+                    "time": float(current_time), "scheduled_time": due.isoformat(),
+                    "amount": amount, "schedule_index": state["index"],
+                })
+                due = state["period"].add_to(due)
+            state["due"] = due
+        return total
 
     @staticmethod
     def _prepare_data(data, primary_symbol):
@@ -126,13 +191,25 @@ class TradingSimulator:
             )
         if entry_price is None:
             entry_price = self._execution.entry_price(order.side, ask, bid)
+        # Pending fills and order batches must use the current quote and
+        # include the costs of every position already opened.
+        self._account.refresh(self._portfolio, bid, ask)
         required_margin = self._account.required_margin(entry_price, order.lot_size)
         entry_commission = self._execution.commission(order.lot_size)
-        if not self._account.can_open(required_margin + entry_commission):
+        required_funds = required_margin + entry_commission
+        topup_key = self._account_config.reserve_margin_topup_metadata_key
+        margin_topup = 0.0
+        if (
+            topup_key
+            and bool(order.metadata.get(topup_key, False))
+            and not self._account.can_open(required_funds)
+        ):
+            margin_topup = self._account.top_up_margin_from_reserve(required_funds)
+        if not self._account.can_open(required_funds):
             rejection = {
                 "time": float(time), "symbol": symbol, "side": order.side.value,
                 "lot_size": order.lot_size, "reason": "insufficient_margin",
-                "required_funds": required_margin + entry_commission,
+                "required_funds": required_funds,
                 "available_funds": self._account.allocatable_free_margin,
                 "metadata": copy.deepcopy(order.metadata),
             }
@@ -143,15 +220,19 @@ class TradingSimulator:
                 metadata=order.metadata, exit_reason="insufficient_margin",
             )
             return None
+        position_metadata = copy.deepcopy(order.metadata)
+        if margin_topup > 0:
+            position_metadata["reserve_margin_topup_amount"] = float(margin_topup)
         position = Position(
             position_id=self._next_position_id, side=order.side,
             entry_price=entry_price, lot_size=order.lot_size, time=time,
-            symbol=symbol, metadata=copy.deepcopy(order.metadata),
+            symbol=symbol, metadata=position_metadata,
             entry_commission=entry_commission,
         )
         self._portfolio.open_position(position)
         self._account.reserve_margin(required_margin)
         self._account.charge_commission(entry_commission)
+        self._account.refresh(self._portfolio, bid, ask)
         self._total_commission += entry_commission
         self._next_position_id += 1
         self._log_event(
@@ -227,12 +308,8 @@ class TradingSimulator:
 
     def _execute_close_requests(self, action, time, ask, bid):
         position_ids = [request.position_id for request in action.close_requests]
-        reasons_by_position_id = {
-            request.position_id: request.reason for request in action.close_requests
-        }
-        metadata_by_position_id = {
-            request.position_id: request.metadata for request in action.close_requests
-        }
+        if len(position_ids) != len(set(position_ids)):
+            raise ValueError("only one close request per position_id is allowed in an action")
         active_ids = {
             position.position_id for position in self._portfolio.positions()
         }
@@ -241,25 +318,72 @@ class TradingSimulator:
             raise ValueError(
                 f"cannot close unknown position_id(s): {missing_ids}"
             )
-        closed_positions = self._portfolio.close_positions(position_ids)
-        for position in closed_positions:
+        positions = {position.position_id: position for position in self._portfolio.positions()}
+        closed_positions = []
+        for request in action.close_requests:
+            position = positions[request.position_id]
+            original_lot = float(position.lot_size)
+            close_lot = (
+                original_lot if request.lot_size is None and request.fraction is None
+                else float(request.lot_size) if request.lot_size is not None
+                else original_lot * float(request.fraction)
+            )
+            tolerance = max(1e-12, original_lot * 1e-12)
+            if close_lot > original_lot + tolerance:
+                raise ValueError(
+                    f"close lot_size {close_lot} exceeds position lot_size {original_lot}"
+                )
+            close_lot = min(close_lot, original_lot)
+            remaining_lot = original_lot - close_lot
+            minimum = float(self._execution_config.minimum_lot_size)
+            if close_lot + tolerance < minimum:
+                raise ValueError(
+                    f"close lot_size {close_lot} is below minimum_lot_size {minimum}"
+                )
+            if remaining_lot > tolerance and remaining_lot + tolerance < minimum:
+                raise ValueError(
+                    f"remaining lot_size {remaining_lot} is below minimum_lot_size {minimum}"
+                )
+
+            ratio = close_lot / original_lot
+            closed_position = copy.deepcopy(position)
+            closed_position.lot_size = close_lot
+            closed_position.entry_commission = position.entry_commission * ratio
+            position.entry_commission -= closed_position.entry_commission
+            funded_total = float(position.metadata.get("reserve_margin_topup_amount", 0.0))
+            funded_closed = funded_total * ratio
+            if funded_total:
+                closed_position.metadata["reserve_margin_topup_amount"] = funded_closed
+                position.metadata["reserve_margin_topup_amount"] = funded_total - funded_closed
+            if remaining_lot <= tolerance:
+                self._portfolio.close_position(position.position_id)
+                remaining_lot = 0.0
+            else:
+                position.lot_size = remaining_lot
+
             exit_price = self._execution.exit_price(position.side, ask, bid)
             realized_profit, realized_pips = self._account.close_position(
-                position, exit_price
+                closed_position, exit_price
             )
-            exit_commission = self._execution.commission(position.lot_size)
+            self._account.settle_margin_topup(
+                funded_closed,
+                realized_profit,
+            )
+            exit_commission = self._execution.commission(close_lot)
             self._account.charge_commission(exit_commission)
             self._total_commission += exit_commission
             self._record_closed_trade(
-                position=position,
+                position=closed_position,
                 exit_price=exit_price,
                 exit_time=time,
                 gross_profit=realized_profit,
                 realized_pips=realized_pips,
                 exit_commission=exit_commission,
-                exit_reason=reasons_by_position_id[position.position_id],
-                exit_metadata=metadata_by_position_id[position.position_id],
+                exit_reason=request.reason,
+                exit_metadata=request.metadata,
+                remaining_lot_size=remaining_lot,
             )
+            closed_positions.append(closed_position)
         self._account.refresh(self._portfolio, bid, ask)
         return closed_positions
 
@@ -284,6 +408,10 @@ class TradingSimulator:
             exit_price = self._execution.exit_price(position.side, ask, bid)
             realized_profit, realized_pips = self._account.close_position(
                 position, exit_price
+            )
+            self._account.settle_margin_topup(
+                position.metadata.get("reserve_margin_topup_amount", 0.0),
+                realized_profit,
             )
             exit_commission = self._execution.commission(position.lot_size)
             self._account.charge_commission(exit_commission)
@@ -312,6 +440,7 @@ class TradingSimulator:
         exit_commission,
         exit_reason,
         exit_metadata,
+        remaining_lot_size=0.0,
     ):
         trade = make_position_snapshot(position)
         total_commission = position.entry_commission + exit_commission
@@ -339,6 +468,8 @@ class TradingSimulator:
                 "holding_seconds": float(exit_time) - float(position.time),
                 "profit_peak_drawdown_pips": float(position.mfe_pips)
                 - float(realized_pips),
+                "is_partial_close": float(remaining_lot_size) > 0.0,
+                "remaining_lot_size": float(remaining_lot_size),
             }
         )
         self._trade_records.append(trade)
@@ -545,6 +676,8 @@ class TradingSimulator:
                 ask=row["ask"], bid=row["bid"]
             )
 
+            cash_flow = self._apply_due_contributions(time)
+
             confirmed_row = self._data.iloc[data_index - 1]
             self._process_pending_orders(time, confirmed_row, ask, bid)
 
@@ -573,6 +706,8 @@ class TradingSimulator:
                     "equity": float(self._account.equity),
                     "trading_capital": float(self._account.trading_capital),
                     "reserved_profit": float(self._account.reserved_profit),
+                    "cash_flow": float(cash_flow),
+                    "cumulative_contributions": float(self._account.total_contributions),
                 }
             )
 
@@ -638,6 +773,7 @@ class TradingSimulator:
             "realized_pips": float(self._account.realized_pips),
             "balance": float(self._account.balance),
             "equity": float(self._account.equity),
+            "total_contributions": float(self._account.total_contributions),
         }
         return SimulationResult(metrics=metrics)
 
@@ -647,6 +783,7 @@ class TradingSimulator:
             final_balance=self._account.balance,
             trades=self._trade_records,
             equity_curve=equity_curve,
+            cash_flows=self._cash_flows,
         )
         metrics.update(
             {
@@ -656,6 +793,17 @@ class TradingSimulator:
                 "final_trading_capital": float(self._account.trading_capital),
                 "reserved_profit": float(self._account.reserved_profit),
                 "reinvested_profit": float(self._account.reinvested_profit),
+                "reserve_refill_total": float(self._account.reserve_refill_total),
+                "reserve_margin_topup_total": float(
+                    self._account.reserve_margin_topup_total
+                ),
+                "reserve_margin_topup_count": int(
+                    self._account.reserve_margin_topup_count
+                ),
+                "reserve_margin_topup_returned": float(
+                    self._account.reserve_margin_topup_returned
+                ),
+                "total_contributions": float(self._account.total_contributions),
                 "total_commission": float(self._total_commission),
                 "additional_spread_pips": float(
                     self._execution_config.additional_spread_pips
@@ -682,4 +830,5 @@ class TradingSimulator:
             trades=copy.deepcopy(self._trade_records),
             equity_curve=equity_curve,
             rejected_orders=copy.deepcopy(self._rejected_orders),
+            cash_flows=copy.deepcopy(self._cash_flows),
         )

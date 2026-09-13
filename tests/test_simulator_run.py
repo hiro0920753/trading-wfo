@@ -210,6 +210,68 @@ class TradingSimulatorRunTest(unittest.TestCase):
         self.assertEqual(trade["realized_profit"], 9.0)
         self.assertEqual(result.metrics["final_balance"], 10_009.0)
 
+    def test_partial_close_keeps_position_and_allocates_commission(self):
+        class ScaleOutStrategy:
+            def __init__(self):
+                self.calls = 0
+                self.remaining_seen = None
+
+            def on_bar(self, context):
+                self.calls += 1
+                if self.calls == 1:
+                    return Action(orders=[Order(Side.LONG, 0.1)])
+                if self.calls == 2:
+                    return Action(close_requests=[CloseRequest(1, lot_size=0.04)])
+                self.remaining_seen = context["long_positions"][0]["lot_size"]
+                return Action(close_requests=[CloseRequest(1)])
+
+        strategy = ScaleOutStrategy()
+        result = TradingSimulator(
+            make_params(), DummyTradingLog(), make_data(),
+            execution_config=ExecutionConfig(
+                commission_per_lot_per_side=10,
+                minimum_lot_size=0.01,
+            ),
+        ).run(strategy)
+
+        self.assertAlmostEqual(strategy.remaining_seen, 0.06)
+        self.assertEqual(len(result.trades), 2)
+        first, second = result.trades
+        self.assertTrue(first["is_partial_close"])
+        self.assertAlmostEqual(first["lot_size"], 0.04)
+        self.assertAlmostEqual(first["remaining_lot_size"], 0.06)
+        self.assertAlmostEqual(first["commission"], 0.8)
+        self.assertFalse(second["is_partial_close"])
+        self.assertEqual(second["remaining_lot_size"], 0)
+        self.assertAlmostEqual(second["commission"], 1.2)
+        self.assertAlmostEqual(result.metrics["net_profit"], 148)
+
+    def test_fractional_close_and_invalid_remainder(self):
+        class FractionStrategy:
+            calls = 0
+
+            def on_bar(self, context):
+                self.calls += 1
+                if self.calls == 1:
+                    return Action(orders=[Order(Side.LONG, 0.1)])
+                return Action(close_requests=[CloseRequest(1, fraction=0.5)])
+
+        result = TradingSimulator(make_params(), None, make_data()).run(FractionStrategy())
+        self.assertEqual(result.trades[0]["lot_size"], 0.05)
+        self.assertEqual(result.trades[0]["remaining_lot_size"], 0.05)
+
+        class InvalidRemainder:
+            calls = 0
+
+            def on_bar(self, context):
+                self.calls += 1
+                if self.calls == 1:
+                    return Action(orders=[Order(Side.LONG, 0.1)])
+                return Action(close_requests=[CloseRequest(1, lot_size=0.095)])
+
+        with self.assertRaisesRegex(ValueError, "remaining lot_size"):
+            TradingSimulator(make_params(), None, make_data()).run(InvalidRemainder())
+
     def test_executes_an_action_at_the_last_current_quote(self):
         data = make_data().iloc[:3]
         simulator = TradingSimulator(make_params(), DummyTradingLog(), data)

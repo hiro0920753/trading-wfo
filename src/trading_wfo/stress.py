@@ -82,7 +82,14 @@ class DelayedEntryStrategy:
         had_pending = self.pending is not None
         ctx = dict(context)
         ctx['delayed_entry_orders'] = () if not had_pending else tuple(self.pending[1])
-        action = self.strategy.on_bar(ctx) or Action()
+        if hasattr(self.strategy, "on_bar"):
+            action = self.strategy.on_bar(ctx)
+        elif callable(self.strategy):
+            action = self.strategy(ctx)
+        else:
+            raise TypeError("strategy must be callable or define on_bar(context)")
+        if action is None:
+            action = Action()
         if any(order.order_type is not OrderType.MARKET for order in action.orders):
             raise ValueError('entry delay supports MARKET orders only')
         if action.stop_trading or action.close_requests:

@@ -132,6 +132,8 @@ class CloseRequest:
     position_id: int
     reason: str = "close_request"
     metadata: Dict[str, Any] = field(default_factory=dict)
+    lot_size: Optional[float] = None
+    fraction: Optional[float] = None
 
     def __post_init__(self):
         object.__setattr__(self, "position_id", int(self.position_id))
@@ -140,6 +142,18 @@ class CloseRequest:
             raise ValueError("close request reason must not be empty")
         object.__setattr__(self, "reason", reason)
         object.__setattr__(self, "metadata", normalize_metadata(self.metadata))
+        if self.lot_size is not None and self.fraction is not None:
+            raise ValueError("specify either lot_size or fraction, not both")
+        if self.lot_size is not None:
+            lot_size = float(self.lot_size)
+            if not math.isfinite(lot_size) or lot_size <= 0:
+                raise ValueError("close lot_size must be positive")
+            object.__setattr__(self, "lot_size", lot_size)
+        if self.fraction is not None:
+            fraction = float(self.fraction)
+            if not math.isfinite(fraction) or not 0 < fraction <= 1:
+                raise ValueError("close fraction must be greater than 0 and at most 1")
+            object.__setattr__(self, "fraction", fraction)
 
 
 @dataclass(frozen=True)

@@ -32,6 +32,14 @@ class TradingModelsTest(unittest.TestCase):
     def test_close_request_defaults_to_legacy_reason(self):
         self.assertEqual(CloseRequest(position_id=3).reason, "close_request")
 
+    def test_close_request_supports_lot_or_fraction(self):
+        self.assertEqual(CloseRequest(1, lot_size=0.02).lot_size, 0.02)
+        self.assertEqual(CloseRequest(1, fraction=0.5).fraction, 0.5)
+        with self.assertRaisesRegex(ValueError, "either"):
+            CloseRequest(1, lot_size=0.01, fraction=0.5)
+        with self.assertRaisesRegex(ValueError, "at most 1"):
+            CloseRequest(1, fraction=1.1)
+
     def test_position_snapshot_is_independent(self):
         position = Position(
             position_id=1,

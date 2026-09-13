@@ -32,6 +32,23 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(metrics["max_drawdown"], 30)
         self.assertEqual(metrics["max_drawdown_pct"], 25)
 
+    def test_external_contribution_is_not_counted_as_profit(self):
+        metrics = calculate_metrics(
+            initial_balance=100,
+            final_balance=170,
+            trades=[{"realized_profit": 20}],
+            cash_flows=[{"amount": 50}],
+            equity_curve=[
+                {"equity": 100, "cash_flow": 0},
+                {"equity": 150, "cash_flow": 50},
+                {"equity": 170, "cash_flow": 0},
+            ],
+        )
+        self.assertEqual(metrics["balance_change"], 70)
+        self.assertEqual(metrics["net_cash_flow"], 50)
+        self.assertEqual(metrics["net_profit"], 20)
+        self.assertAlmostEqual(metrics["time_weighted_return_pct"], 13.3333333333)
+
 
 if __name__ == "__main__":
     unittest.main()

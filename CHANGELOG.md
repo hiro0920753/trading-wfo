@@ -2,7 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## 0.6.1 - 2026-09-13
+
+- Fixed per-order margin checks to include earlier fills, commissions, and
+  unrealized losses in market and pending-limit order batches.
+- Fixed delayed-entry robustness scenarios for callable strategies.
+- Fixed contribution scheduling for timezone-naive market data (interpreted
+  as UTC), while retaining timezone-aware market calendar behavior.
+- Prevented reserve transfers for orders whose full funding cannot be covered,
+  and prevented negative reserve repayments after losses exhaust capital.
+- Added reserve refill and opt-in temporary order funding, with proportional
+  repayment on partial closes and explicit account diagnostics.
+- Added causal periodic account contributions with calendar schedules, separate
+  cash-flow records, contribution-adjusted net profit, and time-weighted return.
+- Added backward-compatible full and partial position closes by explicit lot
+  size or fraction, with proportional commission and remaining-position state.
 
 ## 0.6.0 - 2026-09-11
 

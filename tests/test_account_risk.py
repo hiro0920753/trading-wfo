@@ -136,6 +136,79 @@ class AccountRiskTest(unittest.TestCase):
         self.assertEqual(account.trading_capital, 800)
         self.assertEqual(account.reserved_profit, 0)
 
+    def test_reserved_profit_refills_capital_below_configured_floor(self):
+        config = AccountConfig(
+            initial_balance=100_000,
+            leverage=25,
+            units_per_lot=100_000,
+            price_per_pip=0.01,
+            reinvestment_rate=0.5,
+            reserve_refill_threshold=75_000,
+            reserve_refill_target=100_000,
+        )
+        account = Account(config)
+        account.realize(profit=40_000, pips=100)
+        self.assertEqual(account.trading_capital, 120_000)
+        self.assertEqual(account.reserved_profit, 20_000)
+
+        account.realize(profit=-50_000, pips=-100)
+        self.assertEqual(account.trading_capital, 90_000)
+        self.assertEqual(account.reserved_profit, 0)
+        self.assertEqual(account.reserve_refill_total, 20_000)
+
+    def test_reserve_refill_target_must_not_be_below_threshold(self):
+        with self.assertRaisesRegex(ValueError, "at least"):
+            AccountConfig(
+                initial_balance=100_000,
+                leverage=25,
+                units_per_lot=100_000,
+                price_per_pip=0.01,
+                reserve_refill_threshold=75_000,
+                reserve_refill_target=70_000,
+            )
+
+    def test_margin_topup_moves_only_required_shortfall(self):
+        config = AccountConfig(
+            initial_balance=100_000,
+            leverage=25,
+            units_per_lot=100_000,
+            price_per_pip=0.01,
+            reinvestment_rate=0.5,
+            reserve_margin_topup_metadata_key="high_confidence",
+        )
+        account = Account(config)
+        account.trading_capital = 20_000
+        account.reserved_profit = 50_000
+        account.free_margin = 70_000
+        account.allocatable_free_margin = 20_000
+
+        transferred = account.top_up_margin_from_reserve(30_000)
+
+        self.assertEqual(transferred, 10_000)
+        self.assertEqual(account.trading_capital, 30_000)
+        self.assertEqual(account.reserved_profit, 40_000)
+        self.assertEqual(account.allocatable_free_margin, 30_000)
+        self.assertEqual(account.reserve_margin_topup_total, 10_000)
+        self.assertEqual(account.reserve_margin_topup_count, 1)
+
+    def test_temporary_margin_topup_returns_principal_minus_loss(self):
+        config = AccountConfig(
+            initial_balance=100_000,
+            leverage=25,
+            units_per_lot=100_000,
+            price_per_pip=0.01,
+        )
+        account = Account(config)
+        account.trading_capital = 30_000
+        account.reserved_profit = 40_000
+
+        returned = account.settle_margin_topup(10_000, -2_000)
+
+        self.assertEqual(returned, 8_000)
+        self.assertEqual(account.trading_capital, 22_000)
+        self.assertEqual(account.reserved_profit, 48_000)
+        self.assertEqual(account.reserve_margin_topup_returned, 8_000)
+
     def test_reinvestment_rate_must_be_between_zero_and_one(self):
         with self.assertRaisesRegex(ValueError, "between 0 and 1"):
             AccountConfig(

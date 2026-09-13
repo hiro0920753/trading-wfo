@@ -275,6 +275,7 @@ class WalkForwardRunner:
         running_balance = initial_balance
         combined_curve = []
         combined_trades = []
+        combined_cash_flows = []
         for window in window_results:
             result = window.validation_result
             local_initial = float(result.metrics["initial_balance"])
@@ -285,15 +286,21 @@ class WalkForwardRunner:
                         "time": point["time"],
                         "balance": float(point["balance"]) + offset,
                         "equity": float(point["equity"]) + offset,
+                        "cash_flow": float(point.get("cash_flow", 0.0)),
                     }
                 )
             combined_trades.extend(result.trades)
-            running_balance += float(result.metrics["net_profit"])
+            combined_cash_flows.extend(result.cash_flows)
+            running_balance += (
+                float(result.metrics["net_profit"])
+                + float(result.metrics.get("net_cash_flow", 0.0))
+            )
         metrics = calculate_metrics(
             initial_balance=initial_balance,
             final_balance=running_balance,
             trades=combined_trades,
             equity_curve=combined_curve,
+            cash_flows=combined_cash_flows,
         )
         metrics.update(
             {

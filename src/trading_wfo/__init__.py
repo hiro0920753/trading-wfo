@@ -1,6 +1,6 @@
 """Walk-forward validation and optimization for trading strategies."""
 
-from .account import AccountConfig
+from .account import AccountConfig, ContributionSchedule
 from .constraints import ConstraintResult
 from .execution import ExecutionConfig
 from .errors import ResultSaveError, StrategyExecutionError, TradingWFOError
@@ -36,6 +36,7 @@ __all__ = [
     "RobustnessConfig",
     "StressScenario",
     "AccountConfig",
+    "ContributionSchedule",
     "Action",
     "CloseRequest",
     "CategoricalParameter",
@@ -77,4 +78,4 @@ __all__ = [
     "WindowPeriod",
 ]
 
-__version__ = "0.5.0"
+__version__ = "0.6.1"
