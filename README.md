@@ -1,23 +1,89 @@
 # trading-wfo
-A Python library for walk-forward validation and optimization of trading strategies.
+A Python library for backtesting, walk-forward optimization, and out-of-sample
+robustness checks of trading strategies. Supply your own market data and strategy;
+optionally train a machine-learning model before each optimization window.
 
 Requires Python 3.10 or newer.
 
 > **Alpha release:** validate results independently before using them for any
 > trading decision. This package does not provide investment advice.
 
+## Current release: 0.6.2
+
+Version **0.6.2** updates this documentation and PyPI description. Runtime behavior
+is unchanged from **0.6.1**, which includes:
+
+- Per-order margin checks that account for earlier fills, commissions, and
+  unrealized losses in the same order batch.
+- Scheduled capital contributions, separate cash-flow records, and
+  contribution-adjusted profit and time-weighted return metrics.
+- Full or partial position closes by lot size or fraction.
+- Configurable profit reinvestment, reserve refills, and opt-in temporary
+  reserve funding for orders, including rejection and repayment fixes.
+- Delayed-entry stress scenarios for both callable and `on_bar` strategies,
+  plus consistent contribution scheduling for timezone-naive market data.
+
+## What you can do
+
+- Run one backtest or chronological training / optimization / validation windows.
+- Search parameters with TPE or a finite grid, apply constraints, and inspect
+  parameter stability without selecting a new winner from validation results.
+- Model market and limit orders, spread, commission, slippage, margin, and stop-out.
+- Evaluate frozen out-of-sample spread, entry-delay, and parameter-offset
+  scenarios; optionally inspect trade-PnL Monte Carlo diagnostics.
+- Export trades, equity curves, optimization trials, and training artifacts to
+  JSON/CSV, and inspect results in a local dashboard.
+
+Each simulator trades **one configured instrument**. Additional symbols are
+observation inputs; shared multi-currency execution and currency conversion
+require an external portfolio engine.
+
 ## Installation
 
 ```bash
-pip install trading-wfo
+python -m pip install --upgrade trading-wfo
 ```
 
 Documentation:
 
-- [Quick start](docs/quickstart.md)
-- [Strategy API](docs/strategy-api.md)
-- [Simulator semantics and look-ahead prevention](docs/simulator-semantics.md)
-- [Changelog](CHANGELOG.md)
+- [Quick start](https://github.com/hiro0920753/trading-wfo/blob/v0.6.2/docs/quickstart.md)
+- [Strategy API](https://github.com/hiro0920753/trading-wfo/blob/v0.6.2/docs/strategy-api.md)
+- [Simulator semantics and look-ahead prevention](https://github.com/hiro0920753/trading-wfo/blob/v0.6.2/docs/simulator-semantics.md)
+- [Changelog](https://github.com/hiro0920753/trading-wfo/blob/v0.6.2/CHANGELOG.md)
+
+## Minimal runnable backtest
+
+This example uses a small synthetic quote series and requires no downloaded data.
+It opens one long position on the first executable bar and closes it at the end.
+
+```python
+import pandas as pd
+from trading_wfo import Action, Order, Side, TradingSimulator
+
+prices = [150.00, 150.02, 150.05, 150.03, 150.08]
+data = pd.DataFrame({
+    "time": pd.date_range("2026-01-01", periods=5, freq="15min", tz="UTC"),
+    "bid": prices,
+    "ask": [price + 0.01 for price in prices],
+    "open": prices, "high": prices, "low": prices, "close": prices,
+})
+params = {
+    "common": {"symbol": "USDJPY", "units_per_lot": 100_000, "price_per_pip": 0.01},
+    "strategy_base": {"lookback_bars": 1, "leverage": 25},
+    "asset": {"balance": 100_000},
+}
+
+def strategy(context):
+    if context["step_index"] == 0:
+        return Action(orders=[Order(side=Side.LONG, lot_size=0.01)])
+    return Action()
+
+result = TradingSimulator(params, None, data).run(strategy)
+print(result.metrics["total_trades"])          # 1
+print(round(result.metrics["net_profit"], 2))  # 50.0, in quote-currency units (JPY)
+```
+
+## Walk-forward datasets
 
 Users can provide CSV files or one `pandas.DataFrame`. The library does not
 resample the supplied timeframe. `TradingDataset` creates chronological AI
@@ -79,6 +145,8 @@ is available as `DatasetMode.BACKTEST` or `DatasetMode.WALK_FORWARD`.
 `Account`, `Portfolio`, and `Execution` are internal implementation details.
 Account behavior is configured through the public `AccountConfig` class.
 
+## Scheduled contributions
+
 Periodic external contributions can be applied before order processing at the
 first available bar on or after each scheduled timestamp:
 
@@ -110,6 +178,8 @@ For contribution schedules, market timestamps without a timezone are interpreted
 as UTC. Schedule dates without a timezone use the market data's timezone;
 explicit timezone offsets are converted to that timezone before comparison.
 
+
+## Orders and partial closes
 
 Strategies return dataclasses defined by the library:
 
@@ -164,9 +234,9 @@ trading-wfo dashboard --result results/backtest.json
 
 Backtest mode shows Overview, Equity, Pips, Trades, and Trade Inspector while
 hiding the WFO-only Windows, Robustness, and Progress sections.
-While the simulation is running, the file and dashboard update every two
-seconds and immediately after a trade closes. The completed result is written
-once more at the end.
+While the simulation runs, its compact progress file updates every two seconds
+and after a trade closes. The full result snapshot refreshes every 60 seconds by
+default (`live_result_interval`), and is written again when the run completes.
 
 By default, positions still open at the end of the supplied data are closed at
 the final Bid (long) or Ask (short). The resulting trade has
@@ -211,9 +281,12 @@ on `optimization_data`, and runs the selected parameters once on
 `window_result.optimization_result`; validation metrics are in
 `window_result.validation_result.metrics`.
 
-Windows always run sequentially so validation capital and chronology cannot be
-mixed. `optimization_workers` parallelizes only the independent optimization
-trials inside the active window. After each validation window, `result_path` is
+Windows run sequentially. Each simulator is created by your factory with its
+own initial account; the runner does not carry account state or open positions
+between validation windows. Aggregate results join window profit and equity
+changes additively and are not a shared-account or compounded portfolio.
+`optimization_workers` parallelizes only the optimization trials inside the
+active window. After each validation window, `result_path` is
 atomically replaced with the latest partial result. Its companion progress JSON
 is updated as trials complete and both can be displayed while the run is active:
 
@@ -308,13 +381,17 @@ optimization_result.save_json("results/trials.json")
 ## USDJPY M15 end-to-end example
 
 The repository includes a confirmed-bar EMA crossover example that runs the
-included MT5 CSV data through dataset creation, constrained TPE optimization,
+locally supplied MT5 CSV data through dataset creation, constrained TPE optimization,
 walk-forward validation, aggregate metrics, result serialization, and
 validation-only trade logging.
 
 ```powershell
 python examples/run_usdjpy_m15_wfo.py
 ```
+
+Run repository examples from a checkout, with market CSVs in the expected input
+directory. The wheel does not bundle market history; the synthetic example above
+works directly after installation.
 
 It writes the following user-selectable output paths:
 
@@ -366,15 +443,16 @@ trading-wfo dashboard `
   --log-dir results/usdjpy_m15_ema_cross/logs
 ```
 
-Then visit `http://127.0.0.1:8000`. The dashboard is organized into four
+Then visit `http://127.0.0.1:8000`. The WFO dashboard is organized into five
 sections:
 
 - **Overview** joins validation equity and pips and compares optimization with
   validation profit across windows.
 - **Windows** shows periods, best parameters, constraints, and optimization
   trials for the selected window.
-- **Robustness** shows the validation distribution around each optimized
-  parameter set.
+- **Robustness** shows parameter stability, frozen stress scenarios, and
+  optional Monte Carlo diagnostics.
+- **Progress** shows optimization progress, workers, and elapsed/remaining time.
 - **Trades** analyzes all out-of-sample trades with summary metrics, pips
   distribution, cumulative profit/pips, side/exit/window/metadata breakdowns,
   filters, and an execution/metadata inspector. When `--market-data-dir` is
@@ -401,6 +479,39 @@ trading names such as `realized_profit`, `unrealized_profit`, `buying_power`,
 capital. The remainder is recorded as `reserved_profit`; losses always reduce
 trading capital in full. Close requests are processed before new orders, so
 reinvested profit is available to orders executed on the same bar.
+
+### Reserve refill and temporary order funding
+
+```python
+account_config = AccountConfig(
+    initial_balance=100_000,
+    leverage=25,
+    units_per_lot=100_000,
+    price_per_pip=0.01,
+    reinvestment_rate=0.5,
+    reserve_refill_threshold=50_000,
+    reserve_refill_target=100_000,
+    reserve_margin_topup_metadata_key="use_reserve",
+)
+
+# Pass account_config to TradingSimulator(..., account_config=account_config).
+order = Order(Side.LONG, 0.01, metadata={"use_reserve": True})
+```
+
+After realized profit or loss, the refill rule moves available reserve into
+trading capital when it is below the threshold, up to the target. A zero
+threshold disables refills. Temporary order funding is separately opt-in through
+the configured metadata key: it covers only the shortfall, and only if both the
+reserve and account free margin can cover the full requirement. An unfundable
+order is rejected without transferring reserve. Unused temporary funding is
+returned on close, with losses reducing the repayment; partial closes allocate
+funding proportionally. These internal transfers are not external contributions.
+
+Results expose `final_trading_capital`, `reserved_profit`, `reserve_refill_total`,
+`reserve_margin_topup_total`, `reserve_margin_topup_count`, and
+`reserve_margin_topup_returned` for inspection.
+
+## Execution costs and logging
 
 Spread is represented by the supplied Bid and Ask columns. Optional spread
 stress, commission, and adverse market-order slippage are configured
@@ -459,7 +570,7 @@ the cumulative realized result. Pass `None` instead of a logger when no file is
 needed. Use `TradeLogger(path, append=True)` to append later simulation runs to
 an existing CSV with the same schema.
 
-## Multiple markets and limit orders
+## Multiple market inputs and limit orders
 
 The simulator accepts either one DataFrame or a mapping keyed by symbol. The
 configured `common.symbol` is the execution instrument; the remaining markets

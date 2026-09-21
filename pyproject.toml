@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trading-wfo"
-version = "0.6.1"
-description = "Walk-forward validation and optimization for trading strategies."
+version = "0.6.2"
+description = "Backtesting, walk-forward optimization, and out-of-sample robustness checks for trading strategies."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

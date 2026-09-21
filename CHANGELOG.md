@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.6.2 - 2026-09-21
+
+- Documentation-only release; runtime behavior is unchanged from 0.6.1.
+- Updated the PyPI overview with current features, fixes, and a runnable example.
+- Documented reserve refill and temporary funding, dashboard refresh intervals,
+  independent WFO account state, and single-instrument execution scope.
+- Replaced relative README documentation links with versioned GitHub URLs.
+
 ## 0.6.1 - 2026-09-13
 
 - Fixed per-order margin checks to include earlier fills, commissions, and
